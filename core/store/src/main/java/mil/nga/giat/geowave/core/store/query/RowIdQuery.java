@@ -1,48 +1,55 @@
 package mil.nga.giat.geowave.core.store.query;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.index.NumericIndexStrategy;
 import mil.nga.giat.geowave.core.index.sfc.data.MultiDimensionalNumericData;
-import mil.nga.giat.geowave.core.store.filter.AdapterIdQueryFilter;
 import mil.nga.giat.geowave.core.store.filter.QueryFilter;
+import mil.nga.giat.geowave.core.store.filter.RowIdQueryFilter;
 import mil.nga.giat.geowave.core.store.index.CommonIndexModel;
 import mil.nga.giat.geowave.core.store.index.Index;
 
-public class AdapterIdQuery implements
+public class RowIdQuery implements
 		Query
 {
-	private ByteArrayId adapterId;
+	private final List<ByteArrayId> rowIds;
 
-	public AdapterIdQuery(
-			ByteArrayId adapterId ) {
-		this.adapterId = adapterId;
+	public RowIdQuery(
+			final ByteArrayId rowId ) {
+		rowIds = Collections.singletonList(rowId);
 	}
 
-	public ByteArrayId getAdapterId() {
-		return adapterId;
+	public RowIdQuery(
+			final List<ByteArrayId> rowIds ) {
+		this.rowIds = new ArrayList<ByteArrayId>(
+				rowIds);
+	}
+
+	public List<ByteArrayId> getRowIds() {
+		return rowIds;
 	}
 
 	@Override
 	public List<QueryFilter> createFilters(
-			CommonIndexModel indexModel ) {
-		List<QueryFilter> filters = new ArrayList<QueryFilter>();
-		filters.add(new AdapterIdQueryFilter(
-				adapterId));
+			final CommonIndexModel indexModel ) {
+		final List<QueryFilter> filters = new ArrayList<QueryFilter>();
+		filters.add(new RowIdQueryFilter(
+				rowIds));
 		return filters;
 	}
 
 	@Override
 	public boolean isSupported(
-			Index index ) {
+			final Index index ) {
 		return true;
 	}
 
 	@Override
 	public MultiDimensionalNumericData getIndexConstraints(
-			NumericIndexStrategy indexStrategy ) {
+			final NumericIndexStrategy indexStrategy ) {
 		return null;
 	}
 

@@ -1,16 +1,19 @@
 package mil.nga.giat.geowave.cli.stats;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.DataStore;
 import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
-import mil.nga.giat.geowave.core.store.adapter.statistics.DataAdapterStatsWrapper;
+import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
+import mil.nga.giat.geowave.core.store.adapter.statistics.DataStoreStatsAdapterWrapper;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
 import mil.nga.giat.geowave.core.store.adapter.statistics.StatsCompositionTool;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
 import mil.nga.giat.geowave.core.store.query.Query;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.apache.log4j.Logger;
 
@@ -40,17 +43,19 @@ public class StatsOperation extends
 			while (indexit.hasNext()) {
 				final Index index = indexit.next();
 				try (StatsCompositionTool<?> statsTool = new StatsCompositionTool(
-						new DataAdapterStatsWrapper(
+						new DataStoreStatsAdapterWrapper(
 								index,
-								adapter),
+								(WritableDataAdapter) adapter),
 						statsStore)) {
 					try (CloseableIterator<?> entryIt = dataStore.query(
-							adapter,
-							index,
-							(Query) null,
-							(Integer) null,
-							statsTool,
-							authorizations)) {
+							new QueryOptions(
+									Collections.<String> emptyList(),
+									adapter,
+									index,
+									(Integer) null,
+									statsTool,
+									authorizations),
+							(Query) null)) {
 						while (entryIt.hasNext()) {
 							entryIt.next();
 						}

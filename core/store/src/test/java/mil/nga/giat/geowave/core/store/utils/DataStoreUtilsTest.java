@@ -156,42 +156,35 @@ public class DataStoreUtilsTest
 		@Override
 		public FieldReader<Object> getReader(
 				ByteArrayId fieldId ) {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		public FieldWriter<String, Object> getWriter(
 				ByteArrayId fieldId ) {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		public ByteArrayId[] getSupportedStatisticsIds() {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		public DataStatistics<String> createDataStatistics(
 				ByteArrayId statisticsId ) {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		public DataStatisticsVisibilityHandler<String> getVisibilityHandler(
 				ByteArrayId statisticsId ) {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		protected RowBuilder<String, Object> newBuilder() {
-			// TODO Auto-generated method stub
 			return null;
 		}
-
 	}
 }

@@ -82,8 +82,6 @@ public class GeoWaveAccumuloRecordReader<T> extends
 	protected DistributableQuery query;
 	protected QueryOptions queryOptions;
 	protected boolean isOutputWritable;
-	protected String[] additionalAuthorizations;
-	protected List<ByteArrayId> adapterIds;
 	protected AdapterStore adapterStore;
 	protected AccumuloOperations accumuloOperations;
 
@@ -91,15 +89,11 @@ public class GeoWaveAccumuloRecordReader<T> extends
 			final DistributableQuery query,
 			final QueryOptions queryOptions,
 			final boolean isOutputWritable,
-			final String[] additionalAuthorizations,
-			final List<ByteArrayId> adapterIds,
 			final AdapterStore adapterStore,
 			final AccumuloOperations accumuloOperations ) {
 		this.query = query;
 		this.queryOptions = queryOptions;
 		this.isOutputWritable = isOutputWritable;
-		this.additionalAuthorizations = additionalAuthorizations;
-		this.adapterIds = adapterIds;
 		this.adapterStore = adapterStore;
 		this.accumuloOperations = accumuloOperations;
 	}
@@ -131,18 +125,21 @@ public class GeoWaveAccumuloRecordReader<T> extends
 				queryFilters = query.createFilters(i.getIndexModel());
 			}
 			for (final RangeLocationPair r : ranges) {
+				final QueryOptions rangeQueryOptions = new QueryOptions(
+						queryOptions);
+				rangeQueryOptions.setIndex(i);
+				rangeQueryOptions.setAdapterIds(GeoWaveInputFormat.getAdapterIds(
+						attempt,
+						adapterStore));
 				iteratorsPerRange.put(
 						r,
 						new InputFormatAccumuloRangeQuery(
-								GeoWaveInputFormat.getAdapterIds(
-										attempt,
-										adapterStore),
+								adapterStore,
 								i,
 								r.getRange(),
 								queryFilters,
 								isOutputWritable,
-								queryOptions,
-								additionalAuthorizations).query(
+								queryOptions).query(
 								accumuloOperations,
 								adapterStore,
 								null,

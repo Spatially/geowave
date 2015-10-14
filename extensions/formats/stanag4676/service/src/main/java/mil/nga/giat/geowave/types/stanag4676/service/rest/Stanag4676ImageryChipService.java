@@ -34,6 +34,9 @@ import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.DataStore;
 import mil.nga.giat.geowave.core.store.GeoWaveStoreFinder;
 import mil.nga.giat.geowave.core.store.config.ConfigUtils;
+import mil.nga.giat.geowave.core.store.query.DataIdQuery;
+import mil.nga.giat.geowave.core.store.query.PrefixIdQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.format.stanag4676.Stanag4676IngestPlugin;
 import mil.nga.giat.geowave.format.stanag4676.image.ImageChip;
 import mil.nga.giat.geowave.format.stanag4676.image.ImageChipDataAdapter;
@@ -93,13 +96,27 @@ public class Stanag4676ImageryChipService
 				Calendar.MILLISECOND,
 				millis);
 		final DataStore dataStore = getSingletonInstance();
-		final Object imageChip = dataStore.getEntry(
-				Stanag4676IngestPlugin.IMAGE_CHIP_INDEX,
-				ImageChipUtils.getDataId(
-						mission,
-						track,
-						cal.getTimeInMillis()),
-				ImageChipDataAdapter.ADAPTER_ID);
+		Object imageChip = null;
+		try (CloseableIterator<Object> imageChipIt = dataStore.query(
+				new QueryOptions(
+						ImageChipDataAdapter.ADAPTER_ID,
+						Stanag4676IngestPlugin.IMAGE_CHIP_INDEX.getId()),
+				new DataIdQuery(
+						ImageChipDataAdapter.ADAPTER_ID,
+						ImageChipUtils.getDataId(
+								mission,
+								track,
+								cal.getTimeInMillis())))) {
+			imageChip = (imageChipIt.hasNext()) ? imageChipIt.next() : null;
+		}
+		catch (IOException e1) {
+			LOGGER.error(
+					"Unablable to find image chip for mission " + mission + " track " + track + " at " + cal,
+					e1);
+			return Response.serverError().entity(
+					"Error generating JPEG from image chip for mission = '" + mission + "', track = '" + track + "'").build();
+		}
+
 		if ((imageChip != null) && (imageChip instanceof ImageChip)) {
 			if (targetPixelSize <= 0) {
 				final byte[] imageData = ((ImageChip) imageChip).getImageBinary();
@@ -125,7 +142,7 @@ public class Stanag4676ImageryChipService
 							"Unable to write image chip content to JPEG",
 							e);
 					return Response.serverError().entity(
-							"Error generating JPEG from image chip content").build();
+							"Error generating JPEG from image chip for mission = '" + mission + "', track = '" + track + "'").build();
 				}
 			}
 		}
@@ -148,32 +165,44 @@ public class Stanag4676ImageryChipService
 			@DefaultValue("1")
 			final double speed ) {
 		final DataStore dataStore = getSingletonInstance();
-		final CloseableIterator<Object> imageChipIt = dataStore.getEntriesByPrefix(
-				Stanag4676IngestPlugin.IMAGE_CHIP_INDEX,
-				new ByteArrayId(
-						ByteArrayUtils.combineArrays(
-								ImageChipDataAdapter.ADAPTER_ID.getBytes(),
-								ImageChipUtils.getTrackDataIdPrefix(
-										mission,
-										track).getBytes())));
 		final TreeMap<Long, BufferedImage> imageChips = new TreeMap<Long, BufferedImage>();
 		int width = -1;
 		int height = -1;
-		while (imageChipIt.hasNext()) {
-			final Object imageChipObj = imageChipIt.next();
-			if ((imageChipObj != null) && (imageChipObj instanceof ImageChip)) {
-				final ImageChip imageChip = (ImageChip) imageChipObj;
-				final BufferedImage image = imageChip.getImage(targetPixelSize);
-				if ((width < 0) || (image.getWidth() > width)) {
-					width = image.getWidth();
+		try (CloseableIterator<Object> imageChipIt = dataStore.query(
+				new QueryOptions(
+						ImageChipDataAdapter.ADAPTER_ID,
+						Stanag4676IngestPlugin.IMAGE_CHIP_INDEX.getId()),
+				new PrefixIdQuery(
+						new ByteArrayId(
+								ByteArrayUtils.combineArrays(
+										ImageChipDataAdapter.ADAPTER_ID.getBytes(),
+										ImageChipUtils.getTrackDataIdPrefix(
+												mission,
+												track).getBytes()))))) {
+
+			while (imageChipIt.hasNext()) {
+				final Object imageChipObj = imageChipIt.next();
+				if ((imageChipObj != null) && (imageChipObj instanceof ImageChip)) {
+					final ImageChip imageChip = (ImageChip) imageChipObj;
+					final BufferedImage image = imageChip.getImage(targetPixelSize);
+					if ((width < 0) || (image.getWidth() > width)) {
+						width = image.getWidth();
+					}
+					if ((height < 0) || (image.getHeight() > height)) {
+						height = image.getHeight();
+					}
+					imageChips.put(
+							imageChip.getTimeMillis(),
+							image);
 				}
-				if ((height < 0) || (image.getHeight() > height)) {
-					height = image.getHeight();
-				}
-				imageChips.put(
-						imageChip.getTimeMillis(),
-						image);
 			}
+		}
+		catch (IOException e1) {
+			LOGGER.error(
+					"Unable to read data to compose video file",
+					e1);
+			return Response.serverError().entity(
+					"Video generation failed for mission = '" + mission + "', track = '" + track + "'").build();
 		}
 		if (!imageChips.isEmpty()) {
 			try {
@@ -210,7 +239,7 @@ public class Stanag4676ImageryChipService
 				LOGGER.error(
 						"Unable to write video file",
 						e);
-				Response.serverError().entity(
+				return Response.serverError().entity(
 						"Video generation failed for mission = '" + mission + "', track = '" + track + "'").build();
 			}
 		}

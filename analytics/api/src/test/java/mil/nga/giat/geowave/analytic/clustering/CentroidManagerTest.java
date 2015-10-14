@@ -15,10 +15,12 @@ import mil.nga.giat.geowave.analytic.clustering.CentroidManager.CentroidProcessi
 import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.index.StringUtils;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.StoreFactoryFamilySpi;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.memory.MemoryStoreFactoryFamily;
 
 import org.geotools.feature.type.BasicFeatureTypes;
@@ -31,6 +33,22 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 
 public class CentroidManagerTest
 {
+	private void ingest(
+			DataStore dataStore,
+			FeatureDataAdapter adapter,
+			Index index,
+			SimpleFeature feature )
+			throws IOException {
+		try (IndexWriter writer = dataStore.createIndexWriter(
+				index,
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			writer.write(
+					adapter,
+					feature);
+			writer.close();
+		}
+	}
+
 	@Test
 	public void testSampleRecall()
 			throws IOException {
@@ -80,7 +98,8 @@ public class CentroidManagerTest
 				new HashMap<String, Object>(),
 				namespace);
 
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				feature);
@@ -104,7 +123,8 @@ public class CentroidManagerTest
 				1,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				feature);
@@ -128,7 +148,8 @@ public class CentroidManagerTest
 				1,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				feature);
@@ -152,7 +173,8 @@ public class CentroidManagerTest
 				1,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				feature);
@@ -177,7 +199,8 @@ public class CentroidManagerTest
 				2,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				feature);

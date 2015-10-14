@@ -1,6 +1,8 @@
 package mil.nga.giat.geowave.datastore.accumulo;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -8,14 +10,17 @@ import java.util.Map;
 
 import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.index.StringUtils;
+import mil.nga.giat.geowave.core.store.DataStoreCallbackManager;
 import mil.nga.giat.geowave.core.store.DataStoreEntryInfo;
 import mil.nga.giat.geowave.core.store.IndexWriter;
+import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
 import mil.nga.giat.geowave.core.store.adapter.IndexDependentDataAdapter;
 import mil.nga.giat.geowave.core.store.adapter.RowMergingDataAdapter;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
-import mil.nga.giat.geowave.core.store.adapter.statistics.DataAdapterStatsWrapper;
+import mil.nga.giat.geowave.core.store.adapter.statistics.DataStoreStatsAdapterWrapper;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
 import mil.nga.giat.geowave.core.store.adapter.statistics.StatsCompositionTool;
+import mil.nga.giat.geowave.core.store.data.VisibilityWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloDataStatisticsStore;
 import mil.nga.giat.geowave.datastore.accumulo.util.AccumuloUtils;
@@ -40,6 +45,7 @@ public class AccumuloIndexWriter implements
 	protected final AccumuloOperations accumuloOperations;
 	protected final AccumuloOptions accumuloOptions;
 	protected final AccumuloDataStore dataStore;
+	protected final DataStoreCallbackManager callbackCache;
 	protected Writer writer;
 	protected Writer altIdxWriter;
 
@@ -47,33 +53,40 @@ public class AccumuloIndexWriter implements
 	protected String indexName;
 	protected String altIdxTableName;
 
-	protected boolean persistStats;
-	protected int statsFlushCount = 0;
-	protected boolean skipFlush = false;
 	// just need a reasonable threshold.
-	public static final int FLUSH_STATS_THRESHOLD = 16384;
-	protected final Map<ByteArrayId, StatsCompositionTool<?>> statsMap = new HashMap<ByteArrayId, StatsCompositionTool<?>>();
+
+	protected final VisibilityWriter<?> customFieldVisibilityWriter;
 
 	public AccumuloIndexWriter(
 			final Index index,
 			final AccumuloOperations accumuloOperations,
-			final AccumuloDataStore dataStore ) {
+			final AccumuloDataStore dataStore,
+			final DataStatisticsStore statsStore,
+			final VisibilityWriter<?> customFieldVisibilityWriter ) {
 		this(
 				index,
 				accumuloOperations,
 				new AccumuloOptions(),
-				dataStore);
+				dataStore,
+				statsStore,
+				customFieldVisibilityWriter);
+
 	}
 
 	public AccumuloIndexWriter(
 			final Index index,
 			final AccumuloOperations accumuloOperations,
 			final AccumuloOptions accumuloOptions,
-			final AccumuloDataStore dataStore ) {
+			final AccumuloDataStore dataStore,
+			final DataStatisticsStore statsStore,
+			final VisibilityWriter<?> customFieldVisibilityWriter ) {
 		this.index = index;
 		this.accumuloOperations = accumuloOperations;
 		this.accumuloOptions = accumuloOptions;
 		this.dataStore = dataStore;
+		this.customFieldVisibilityWriter = customFieldVisibilityWriter;
+		this.callbackCache = new DataStoreCallbackManager(
+				statsStore);
 		initialize();
 	}
 
@@ -82,7 +95,7 @@ public class AccumuloIndexWriter implements
 		altIdxTableName = indexName + AccumuloUtils.ALT_INDEX_TABLE;
 
 		useAltIndex = accumuloOptions.isUseAltIndex();
-		persistStats = accumuloOptions.isPersistDataStatistics();
+		callbackCache.setPersistStats(accumuloOptions.isPersistDataStatistics());
 		if (useAltIndex) {
 			if (accumuloOperations.tableExists(indexName)) {
 				if (!accumuloOperations.tableExists(altIdxTableName)) {
@@ -98,16 +111,6 @@ public class AccumuloIndexWriter implements
 			}
 		}
 
-		try {
-			final Object v = System.getProperty("AccumuloIndexWriter.skipFlush");
-			skipFlush = ((v != null) && v.toString().equalsIgnoreCase(
-					"true"));
-		}
-		catch (final Exception ex) {
-			LOGGER.error(
-					"Unable to determine property AccumuloIndexWriter.skipFlush",
-					ex);
-		}
 	}
 
 	private synchronized void ensureOpen() {
@@ -157,6 +160,17 @@ public class AccumuloIndexWriter implements
 	public <T> List<ByteArrayId> write(
 			final WritableDataAdapter<T> writableAdapter,
 			final T entry ) {
+		return write(
+				writableAdapter,
+				entry,
+				(VisibilityWriter<T>) this.customFieldVisibilityWriter);
+	}
+
+	@Override
+	public <T> List<ByteArrayId> write(
+			final WritableDataAdapter<T> writableAdapter,
+			final T entry,
+			final VisibilityWriter<T> feldVisibilityWriter ) {
 		if (writableAdapter instanceof IndexDependentDataAdapter) {
 			final IndexDependentDataAdapter adapter = ((IndexDependentDataAdapter) writableAdapter);
 			final Iterator<T> indexedEntries = adapter.convertToIndex(
@@ -166,20 +180,23 @@ public class AccumuloIndexWriter implements
 			while (indexedEntries.hasNext()) {
 				rowIds.addAll(writeInternal(
 						adapter,
-						indexedEntries.next()));
+						indexedEntries.next(),
+						feldVisibilityWriter));
 			}
 			return rowIds;
 		}
 		else {
 			return writeInternal(
 					writableAdapter,
-					entry);
+					entry,
+					feldVisibilityWriter);
 		}
 	}
 
 	public <T> List<ByteArrayId> writeInternal(
 			final WritableDataAdapter<T> writableAdapter,
-			final T entry ) {
+			final T entry,
+			final VisibilityWriter<T> visibilityWriter ) {
 		final ByteArrayId adapterIdObj = writableAdapter.getAdapterId();
 
 		final byte[] adapterId = writableAdapter.getAdapterId().getBytes();
@@ -210,32 +227,49 @@ public class AccumuloIndexWriter implements
 					"Unable to determine existence of locality group [" + writableAdapter.getAdapterId().getString() + "]",
 					e);
 		}
+		final String tableName = StringUtils.stringFromBinary(index.getId().getBytes());
+		final String altIdxTableName = tableName + AccumuloUtils.ALT_INDEX_TABLE;
+
 		DataStoreEntryInfo entryInfo;
 		synchronized (this) {
 			dataStore.store(writableAdapter);
 			dataStore.store(index);
 
 			ensureOpen();
+			if (writer == null) return Collections.emptyList();
 			entryInfo = AccumuloUtils.write(
 					writableAdapter,
 					index,
 					entry,
-					writer);
+					writer,
+					visibilityWriter);
 
 			if (useAltIndex) {
+
+				if (accumuloOperations.tableExists(tableName)) {
+					if (!accumuloOperations.tableExists(altIdxTableName)) {
+						useAltIndex = false;
+						LOGGER.warn("Requested alternate index table [" + altIdxTableName + "] does not exist.");
+					}
+				}
+				else {
+					if (accumuloOperations.tableExists(altIdxTableName)) {
+						accumuloOperations.deleteTable(altIdxTableName);
+						LOGGER.warn("Deleting current alternate index table [" + altIdxTableName + "] as main table does not yet exist.");
+					}
+				}
+
 				AccumuloUtils.writeAltIndex(
 						writableAdapter,
 						entryInfo,
 						entry,
 						altIdxWriter);
 			}
-			if (persistStats) {
-				recordStats(
-						adapterIdObj,
-						entryInfo,
-						writableAdapter,
-						entry);
-			}
+			callbackCache.getIngestCallback(
+					(WritableDataAdapter<T>) writableAdapter,
+					index).entryIngested(
+					entryInfo,
+					entry);
 		}
 		return entryInfo.getRowIds();
 	}
@@ -244,9 +278,14 @@ public class AccumuloIndexWriter implements
 	public void close() {
 		// thread safe close
 		closeInternal();
-
-		// write the statistics and clear it
-		flushStats();
+		try {
+			callbackCache.close();
+		}
+		catch (IOException e) {
+			LOGGER.error(
+					"Cannot close callbacks",
+					e);
+		}
 	}
 
 	@Override
@@ -291,47 +330,6 @@ public class AccumuloIndexWriter implements
 		}
 		if (useAltIndex && (altIdxWriter != null)) {
 			altIdxWriter.flush();
-		}
-		flushStats();
-
-	}
-
-	private synchronized void flushStats() {
-		// write the statistics and clear it
-		if (persistStats) {
-			final DataStatisticsStore statsStore = new AccumuloDataStatisticsStore(
-					accumuloOperations);
-			for (final StatsCompositionTool<?> tool : statsMap.values()) {
-				tool.setStatisticsStore(statsStore);
-				tool.flush();
-			}
-			statsMap.clear();
-		}
-	}
-
-	private synchronized <T> void recordStats(
-			final ByteArrayId adapterIdObj,
-			final DataStoreEntryInfo entryInfo,
-			final WritableDataAdapter<T> writableAdapter,
-			final T entry ) {
-
-		StatsCompositionTool<T> tool = (StatsCompositionTool<T>) statsMap.get(adapterIdObj);
-		if (tool == null) {
-			tool = new StatsCompositionTool<T>(
-					new DataAdapterStatsWrapper<T>(
-							index,
-							writableAdapter));
-			statsMap.put(
-					adapterIdObj,
-					tool);
-		}
-		tool.entryIngested(
-				entryInfo,
-				entry);
-		statsFlushCount++;
-		if (!skipFlush && (statsFlushCount > FLUSH_STATS_THRESHOLD)) {
-			statsFlushCount = 0;
-			flushStats();
 		}
 	}
 }

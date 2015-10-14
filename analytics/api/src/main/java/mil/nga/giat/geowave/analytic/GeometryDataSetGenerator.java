@@ -15,7 +15,9 @@ import mil.nga.giat.geowave.core.cli.CommandLineResult;
 import mil.nga.giat.geowave.core.cli.DataStoreCommandLineOptions;
 import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -182,9 +184,12 @@ public class GeometryDataSetGenerator
 		Integer idCounter = 0;
 		for (final SimpleFeature feature : featureData) {
 
-			dataStore.ingest(
-					adapter,
+			IndexWriter writer = dataStore.createIndexWriter(
 					index,
+					DataStoreUtils.DEFAULT_VISIBILITY);
+			writer.setupAdapter(adapter);
+			writer.write(
+					adapter,
 					feature);
 			featureBuilder.reset();
 

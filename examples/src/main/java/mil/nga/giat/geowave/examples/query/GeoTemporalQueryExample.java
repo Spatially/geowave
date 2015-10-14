@@ -15,7 +15,10 @@ import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.geotime.store.filter.SpatialQueryFilter.CompareOperation;
 import mil.nga.giat.geowave.core.geotime.store.query.SpatialTemporalQuery;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStore;
 import mil.nga.giat.geowave.datastore.accumulo.BasicAccumuloOperations;
 
@@ -127,7 +130,8 @@ public class GeoTemporalQueryExample
 
 	}
 
-	private void ingestCannedData() {
+	private void ingestCannedData()
+			throws IOException {
 
 		final List<SimpleFeature> points = new ArrayList<>();
 
@@ -177,11 +181,20 @@ public class GeoTemporalQueryExample
 
 		System.out.println("Ingesting canned data...");
 
-		dataStore.ingest(
-				new FeatureDataAdapter(
-						getPointSimpleFeatureType()),
+		final FeatureDataAdapter adapter = new FeatureDataAdapter(
+				getPointSimpleFeatureType());
+
+		try (IndexWriter indexWriter = dataStore.createIndexWriter(
 				index,
-				points.iterator());
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			for (SimpleFeature sf : points) {
+				//
+				indexWriter.write(
+						adapter,
+						sf);
+
+			}
+		}
 
 		System.out.println("Ingest complete.");
 	}
@@ -224,7 +237,8 @@ public class GeoTemporalQueryExample
 		System.out.println("Executing query, expecting to match ALL points...");
 
 		final CloseableIterator<SimpleFeature> iterator = dataStore.query(
-				index,
+				new QueryOptions(
+						index),
 				query);
 
 		while (iterator.hasNext()) {

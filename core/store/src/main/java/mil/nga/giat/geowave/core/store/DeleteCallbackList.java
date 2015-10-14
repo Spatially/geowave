@@ -4,23 +4,23 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
-public class IngestCallbackList<T> implements
-		IngestCallback<T>,
+public class DeleteCallbackList<T> implements
+		DeleteCallback<T>,
 		Closeable
 {
-	private final List<IngestCallback<T>> callbacks;
+	private final List<DeleteCallback<T>> callbacks;
 
-	public IngestCallbackList(
-			final List<IngestCallback<T>> callbacks ) {
+	public DeleteCallbackList(
+			final List<DeleteCallback<T>> callbacks ) {
 		this.callbacks = callbacks;
 	}
 
 	@Override
-	public void entryIngested(
+	public void entryDeleted(
 			final DataStoreEntryInfo entryInfo,
 			final T entry ) {
-		for (final IngestCallback<T> callback : callbacks) {
-			callback.entryIngested(
+		for (final DeleteCallback<T> callback : callbacks) {
+			callback.entryDeleted(
 					entryInfo,
 					entry);
 		}
@@ -29,7 +29,7 @@ public class IngestCallbackList<T> implements
 	@Override
 	public void close()
 			throws IOException {
-		for (final IngestCallback<T> callback : callbacks) {
+		for (final DeleteCallback<T> callback : callbacks) {
 			if (callback instanceof Closeable) ((Closeable) callback).close();
 		}
 	}

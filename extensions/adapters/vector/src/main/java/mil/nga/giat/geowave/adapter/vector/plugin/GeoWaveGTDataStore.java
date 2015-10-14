@@ -32,6 +32,7 @@ import mil.nga.giat.geowave.core.store.dimension.DimensionField;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
 import mil.nga.giat.geowave.core.store.query.AdapterIdQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.apache.log4j.Logger;
 import org.geotools.data.FeatureListenerManager;
@@ -252,10 +253,13 @@ public class GeoWaveGTDataStore extends
 		if (adapter != null) {
 			final String[] authorizations = getAuthorizationSPI().getAuthorizations();
 			dataStore.delete(
+					new QueryOptions(
+							adapter,
+							(Index) null,
+							authorizations),
 					new AdapterIdQuery(
-							adapter.getAdapterId()),
-					authorizations);
-			// TODO don't we want to delete the adapter from the adapter store?
+							adapter.getAdapterId()));
+			// TODO do we want to delete the adapter from the adapter store?
 		}
 	}
 

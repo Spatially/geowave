@@ -18,6 +18,7 @@ import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.config.ConfigUtils;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.mapreduce.GeoWaveConfiguratorBase;
 import mil.nga.giat.geowave.mapreduce.input.GeoWaveInputFormat;
 import mil.nga.giat.geowave.mapreduce.output.GeoWaveOutputFormat;
@@ -335,7 +336,8 @@ public class KDEJobRunner extends
 				job.getConfiguration(),
 				index);
 		final IndexWriter writer = outputDataStoreOptions.createStore().createIndexWriter(
-				index);
+				index,
+				DataStoreUtils.DEFAULT_VISIBILITY);
 		writer.setupAdapter(adapter);
 		writer.close();
 	}

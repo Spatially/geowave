@@ -14,7 +14,10 @@ import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.geotime.store.query.SpatialQuery;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStore;
 import mil.nga.giat.geowave.datastore.accumulo.BasicAccumuloOperations;
 
@@ -86,6 +89,9 @@ public class GeotoolsQueryExample
 				fedexField);
 	}
 
+	final static FeatureDataAdapter ADAPTER = new FeatureDataAdapter(
+			getPointSimpleFeatureType());
+
 	public static void main(
 			String[] args )
 			throws AccumuloException,
@@ -138,7 +144,8 @@ public class GeotoolsQueryExample
 						TABLE_NAMESPACE));
 	}
 
-	private static void ingestCannedData() {
+	private static void ingestCannedData()
+			throws IOException {
 
 		final List<SimpleFeature> points = new ArrayList<>();
 
@@ -153,11 +160,17 @@ public class GeotoolsQueryExample
 
 		System.out.println("Ingesting canned data...");
 
-		dataStore.ingest(
-				new FeatureDataAdapter(
-						getPointSimpleFeatureType()),
+		try (IndexWriter indexWriter = dataStore.createIndexWriter(
 				index,
-				points.iterator());
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			for (SimpleFeature sf : points) {
+				//
+				indexWriter.write(
+						ADAPTER,
+						sf);
+
+			}
+		}
 
 		System.out.println("Ingest complete.");
 	}
@@ -173,16 +186,17 @@ public class GeotoolsQueryExample
 
 		System.out.println("Executing query, expecting to match ALL points...");
 
-		final CloseableIterator<SimpleFeature> iterator = dataStore.query(
-				index,
+		try (final CloseableIterator<SimpleFeature> iterator = dataStore.query(
+				new QueryOptions(
+						index),
 				new SpatialQuery(
-						boundingBox));
+						boundingBox))) {
 
-		while (iterator.hasNext()) {
-			System.out.println("Query match: " + iterator.next().getID());
+			while (iterator.hasNext()) {
+				System.out.println("Query match: " + iterator.next().getID());
+			}
 		}
 
-		iterator.close();
 	}
 
 	private static void executePolygonQuery()
@@ -199,16 +213,23 @@ public class GeotoolsQueryExample
 
 		System.out.println("Executing query, expecting to match ALL points...");
 
-		final CloseableIterator<SimpleFeature> closableIterator = dataStore.query(
-				index,
+		/**
+		 * NOTICE: In this query, the adapter is added to the query options. If
+		 * an index has data from more than one adapter, the data associated
+		 * with a specific adapter can be selected.
+		 */
+		try (final CloseableIterator<SimpleFeature> closableIterator = dataStore.query(
+				new QueryOptions(
+						ADAPTER,
+						index),
 				new SpatialQuery(
-						polygon));
+						polygon))) {
 
-		while (closableIterator.hasNext()) {
-			System.out.println("Query match: " + closableIterator.next().getID());
+			while (closableIterator.hasNext()) {
+				System.out.println("Query match: " + closableIterator.next().getID());
+			}
 		}
 
-		closableIterator.close();
 	}
 
 	private static void cleanup()

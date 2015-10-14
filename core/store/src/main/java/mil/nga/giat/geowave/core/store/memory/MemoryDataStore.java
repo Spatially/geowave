@@ -1,20 +1,20 @@
 package mil.nga.giat.geowave.core.store.memory;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.TreeSet;
 
 import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
+import mil.nga.giat.geowave.core.store.CloseableIteratorWrapper;
 import mil.nga.giat.geowave.core.store.DataStore;
-import mil.nga.giat.geowave.core.store.DataStoreEntryInfo;
+import mil.nga.giat.geowave.core.store.DataStoreCallbackManager;
 import mil.nga.giat.geowave.core.store.DataStoreEntryInfo.FieldInfo;
 import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.IngestCallback;
@@ -22,18 +22,19 @@ import mil.nga.giat.geowave.core.store.ScanCallback;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
 import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
-import mil.nga.giat.geowave.core.store.adapter.statistics.DataAdapterStatsWrapper;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
-import mil.nga.giat.geowave.core.store.adapter.statistics.StatsCompositionTool;
 import mil.nga.giat.geowave.core.store.data.IndexedPersistenceEncoding;
 import mil.nga.giat.geowave.core.store.data.VisibilityWriter;
 import mil.nga.giat.geowave.core.store.filter.QueryFilter;
+import mil.nga.giat.geowave.core.store.index.CommonIndexModel;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
 import mil.nga.giat.geowave.core.store.query.Query;
 import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.apache.log4j.Logger;
+
+import com.google.common.collect.Iterators;
 
 public class MemoryDataStore implements
 		DataStore
@@ -63,175 +64,21 @@ public class MemoryDataStore implements
 
 	@Override
 	public <T> IndexWriter createIndexWriter(
-			final Index index ) {
+			final Index index,
+			final VisibilityWriter<T> visibilityWriter ) {
+		indexStore.addIndex(index);
 
 		return createWriter(
 				index,
-				null,
-				new IngestCallback<T>() {
-
-					@Override
-					public void entryIngested(
-							final DataStoreEntryInfo entryInfo,
-							final T entry ) {
-
-					}
-				},
-				DataStoreUtils.DEFAULT_VISIBILITY);
-	}
-
-	@Override
-	public <T> List<ByteArrayId> ingest(
-			final WritableDataAdapter<T> writableAdapter,
-			final Index index,
-			final T entry ) {
-		return ingestInternal(
-				writableAdapter,
-				index,
-				Collections.singletonList(
-						entry).iterator(),
-				new IngestCallback<T>() {
-
-					@Override
-					public void entryIngested(
-							final DataStoreEntryInfo entryInfo,
-							final T entry ) {
-
-					}
-				},
-				DataStoreUtils.DEFAULT_VISIBILITY);
-	}
-
-	@Override
-	public <T> void ingest(
-			final WritableDataAdapter<T> writableAdapter,
-			final Index index,
-			final Iterator<T> entryIterator ) {
-		ingestInternal(
-				writableAdapter,
-				index,
-				entryIterator,
-				new IngestCallback<T>() {
-
-					@Override
-					public void entryIngested(
-							final DataStoreEntryInfo entryInfo,
-							final T entry ) {
-
-					}
-				},
-				DataStoreUtils.DEFAULT_VISIBILITY);
-	}
-
-	@Override
-	public <T> List<ByteArrayId> ingest(
-			final WritableDataAdapter<T> writableAdapter,
-			final Index index,
-			final T entry,
-			final VisibilityWriter<T> customFieldVisibilityWriter ) {
-		return ingestInternal(
-				writableAdapter,
-				index,
-				Collections.singletonList(
-						entry).iterator(),
-				new IngestCallback<T>() {
-
-					@Override
-					public void entryIngested(
-							final DataStoreEntryInfo entryInfo,
-							final T entry ) {
-
-					}
-				},
-				customFieldVisibilityWriter);
-
-	}
-
-	@Override
-	public <T> void ingest(
-			final WritableDataAdapter<T> writableAdapter,
-			final Index index,
-			final Iterator<T> entryIterator,
-			final IngestCallback<T> ingestCallback ) {
-		ingest(
-				writableAdapter,
-				index,
-				entryIterator,
-				ingestCallback,
-				DataStoreUtils.DEFAULT_VISIBILITY);
-	}
-
-	@Override
-	public <T> void ingest(
-			final WritableDataAdapter<T> writableAdapter,
-			final Index index,
-			final Iterator<T> entryIterator,
-			final IngestCallback<T> ingestCallback,
-			final VisibilityWriter<T> customFieldVisibilityWriter ) {
-		ingestInternal(
-				writableAdapter,
-				index,
-				entryIterator,
-				ingestCallback,
-				customFieldVisibilityWriter);
-	}
-
-	private <T> List<ByteArrayId> ingestInternal(
-			final WritableDataAdapter<T> writableAdapter,
-			final Index index,
-			final Iterator<T> entryIterator,
-			final IngestCallback<T> ingestCallback,
-			final VisibilityWriter<T> customFieldVisibilityWriter ) {
-		adapterStore.addAdapter(writableAdapter);
-		indexStore.addIndex(index);
-		final List<ByteArrayId> ids = new ArrayList<ByteArrayId>();
-		try (StatsCompositionTool<T> tool = new StatsCompositionTool<T>(
-				new DataAdapterStatsWrapper<T>(
-						index,
-						writableAdapter),
-				statsStore)) {
-			final IndexWriter writer = createWriter(
-					index,
-					writableAdapter,
-					new IngestCallback<T>() {
-
-						@Override
-						public void entryIngested(
-								final DataStoreEntryInfo entryInfo,
-								final T entry ) {
-							ingestCallback.entryIngested(
-									entryInfo,
-									entry);
-							tool.entryIngested(
-									entryInfo,
-									entry);
-						}
-					},
-					customFieldVisibilityWriter);
-			while (entryIterator.hasNext()) {
-				final T nextEntry = entryIterator.next();
-				ids.addAll(writer.write(
-						writableAdapter,
-						nextEntry));
-			}
-		}
-		catch (final Exception e) {
-			LOGGER.error(
-					"Failed ingest",
-					e);
-		}
-		return ids;
+				visibilityWriter);
 	}
 
 	private <T> IndexWriter createWriter(
 			final Index index,
-			final WritableDataAdapter<T> writableAdapter,
-			final IngestCallback<T> ingestCallback,
 			final VisibilityWriter<T> customFieldVisibilityWriter ) {
 
 		return new MyIndexWriter<T>(
 				index,
-				ingestCallback,
 				customFieldVisibilityWriter);
 	}
 
@@ -239,34 +86,51 @@ public class MemoryDataStore implements
 			IndexWriter
 	{
 		final Index index;
-		final IngestCallback<S> ingestCallback;
 		final VisibilityWriter<S> customFieldVisibilityWriter;
+		final DataStoreCallbackManager callbackCache = new DataStoreCallbackManager(
+				statsStore);
 
 		public MyIndexWriter(
 				final Index index,
-				final IngestCallback<S> ingestCallback,
 				final VisibilityWriter<S> customFieldVisibilityWriter ) {
 			super();
 			this.index = index;
-			this.ingestCallback = ingestCallback;
 			this.customFieldVisibilityWriter = customFieldVisibilityWriter;
 		}
 
 		@Override
 		public void close()
-				throws IOException {}
+				throws IOException {
+			callbackCache.close();
+		}
 
 		@Override
 		public <T> List<ByteArrayId> write(
 				final WritableDataAdapter<T> writableAdapter,
 				final T entry ) {
+			return write(
+					writableAdapter,
+					entry,
+					(VisibilityWriter<T>) customFieldVisibilityWriter);
+		}
+
+		@Override
+		public <T> List<ByteArrayId> write(
+				final WritableDataAdapter<T> writableAdapter,
+				final T entry,
+				final VisibilityWriter<T> fieldVisibilityWriter ) {
+
+			adapterStore.addAdapter(writableAdapter);
+			final IngestCallback<T> callback = (IngestCallback<T>) callbackCache.getIngestCallback(
+					writableAdapter,
+					index);
 			final List<ByteArrayId> ids = new ArrayList<ByteArrayId>();
 			final List<EntryRow> rows = DataStoreUtils.entryToRows(
 					writableAdapter,
 					index,
 					entry,
-					(IngestCallback<T>) ingestCallback,
-					(VisibilityWriter<T>) customFieldVisibilityWriter);
+					callback,
+					fieldVisibilityWriter);
 			for (final EntryRow row : rows) {
 				ids.add(row.getRowId());
 				final TreeSet<EntryRow> rowTreeSet = getRowsForIndex(index.getId());
@@ -303,15 +167,6 @@ public class MemoryDataStore implements
 
 	}
 
-	@Override
-	public CloseableIterator<?> query(
-			final Query query,
-			final String... authorizations ) {
-		return query(
-				query,
-				-1);
-	}
-
 	private TreeSet<EntryRow> getRowsForIndex(
 			final ByteArrayId id ) {
 		TreeSet<EntryRow> set = storeData.get(id);
@@ -325,425 +180,182 @@ public class MemoryDataStore implements
 	}
 
 	@Override
-	public <T> T getEntry(
-			final Index index,
-			final ByteArrayId rowId ) {
-		final Iterator<EntryRow> rowIt = getRowsForIndex(
-				index.getId()).iterator();
-		while (rowIt.hasNext()) {
-			final EntryRow row = rowIt.next();
-			if (Arrays.equals(
-					row.getTableRowId().getRowId(),
-					rowId.getBytes())) {
-				return (T) row.getEntry();
-			}
-		}
-		return null;
-	}
-
-	@Override
-	public <T> T getEntry(
-			final Index index,
-			final ByteArrayId dataId,
-			final ByteArrayId adapterId,
-			final String... additionalAuthorizations ) {
-		final Iterator<EntryRow> rowIt = getRowsForIndex(
-				index.getId()).iterator();
-		while (rowIt.hasNext()) {
-			final EntryRow row = rowIt.next();
-			if (Arrays.equals(
-					row.getTableRowId().getDataId(),
-					dataId.getBytes()) && Arrays.equals(
-					row.getTableRowId().getAdapterId(),
-					adapterId.getBytes()) && isAuthorized(
-					row,
-					additionalAuthorizations)) {
-				return (T) row.getEntry();
-			}
-		}
-		return null;
-	}
-
-	@Override
-	public boolean deleteEntry(
-			final Index index,
-			final ByteArrayId dataId,
-			final ByteArrayId adapterId,
-			final String... authorizations ) {
-		final DataAdapter<?> adapter = adapterStore.getAdapter(adapterId);
-		try (StatsCompositionTool<Object> tool = new StatsCompositionTool(
-				adapter,
-				statsStore)) {
-			final Iterator<EntryRow> rowIt = getRowsForIndex(
-					index.getId()).iterator();
-			while (rowIt.hasNext()) {
-				final EntryRow row = rowIt.next();
-				if (Arrays.equals(
-						row.getTableRowId().getDataId(),
-						dataId.getBytes()) && Arrays.equals(
-						row.getTableRowId().getAdapterId(),
-						adapterId.getBytes()) && isAuthorized(
-						row,
-						authorizations)) {
-					rowIt.remove();
-					tool.entryDeleted(
-							row.info,
-							row.entry);
-				}
-			}
-		}
-		catch (final Exception e) {
-			LOGGER.error(
-					"Failed deletetion",
-					e);
-		}
-		return false;
-	}
-
-	@Override
-	public <T> CloseableIterator<T> getEntriesByPrefix(
-			final Index index,
-			final ByteArrayId rowPrefix,
-			final String... authorizations ) {
-
-		final Iterator<EntryRow> rowIt = getRowsForIndex(
-				index.getId()).iterator();
-
-		return new CloseableIterator<T>() {
-
-			EntryRow nextRow = null;
-
-			private boolean getNext() {
-				while ((nextRow == null) && rowIt.hasNext()) {
-					final EntryRow row = rowIt.next();
-					if (!Arrays.equals(
-							rowPrefix.getBytes(),
-							Arrays.copyOf(
-									row.rowId.getRowId(),
-									rowPrefix.getBytes().length))) {
-						continue;
-					}
-					nextRow = row;
-					break;
-				}
-				return nextRow != null;
-			}
-
-			@Override
-			public boolean hasNext() {
-				return getNext();
-			}
-
-			@Override
-			public T next() {
-				final EntryRow currentRow = nextRow;
-				nextRow = null;
-				if (currentRow == null) {
-					throw new NoSuchElementException();
-				}
-				return (T) currentRow.entry;
-			}
-
-			@Override
-			public void remove() {
-				rowIt.remove();
-			}
-
-			@Override
-			public void close()
-					throws IOException {}
-		};
-	}
-
-	@Override
-	public <T> CloseableIterator<T> query(
-			final DataAdapter<T> adapter,
-			final Query query,
-			final String... additionalAuthorizations ) {
-		return (CloseableIterator<T>) query(
-				Arrays.asList(adapter.getAdapterId()),
-				query,
-				-1);
-	}
-
-	@Override
-	public <T> CloseableIterator<T> query(
-			final Index index,
-			final Query query,
-			final String... additionalAuthorizations ) {
-		return query(
-				index,
-				query,
-				-1);
-	}
-
-	@Override
-	public <T> CloseableIterator<T> query(
-			final Index index,
-			final Query query,
+	public boolean delete(
 			final QueryOptions queryOptions,
-			final String... additionalAuthorizations ) {
-		return query(
-				index,
+			final Query query ) {
+		final DataStoreCallbackManager callbackCache = new DataStoreCallbackManager(
+				statsStore);
+
+		try (CloseableIterator<?> it = query(
+				queryOptions,
 				query,
-				-1);
-	}
-
-	@Override
-	public <T> CloseableIterator<T> query(
-			final DataAdapter<T> adapter,
-			final Index index,
-			final Query query,
-			final String... additionalAuthorizations ) {
-		return query(
-				adapter,
-				index,
-				query,
-				-1,
-				new ScanCallback<T>() {
-
-					@Override
-					public void entryScanned(
-							final DataStoreEntryInfo entryInfo,
-							final T entry ) {
-
-					}
-				},
-				additionalAuthorizations);
-	}
-
-	@Override
-	public CloseableIterator<?> query(
-			final List<ByteArrayId> adapterIds,
-			final Query query,
-			final String... additionalAuthorizations ) {
-		return query(
-				adapterIds,
-				query,
-				-1);
-	}
-
-	@Override
-	public CloseableIterator<?> query(
-			final Query query,
-			final int limit,
-			final String... authorizations ) {
-		final List<ByteArrayId> adapterIds = new ArrayList<ByteArrayId>();
-		try (CloseableIterator<DataAdapter<?>> adapterIt = adapterStore.getAdapters()) {
-			while (adapterIt.hasNext()) {
-				adapterIds.add(adapterIt.next().getAdapterId());
+				true,
+				callbackCache)) {
+			while (it.hasNext()) {
+				it.next();
+				it.remove();
 			}
+			callbackCache.close();
 		}
 		catch (final IOException e) {
 			LOGGER.error(
-					"Failed to execute query " + query.toString(),
+					"Failed deletetion",
 					e);
+			return false;
 		}
-		return query(
-				adapterIds,
-				query,
-				limit);
+
+		return true;
 	}
 
+	/**
+	 * Returns all data in this data store that matches the query parameter
+	 * within the index described by the index passed in and matches the adapter
+	 * (the same adapter ID as the ID ingested). All data that matches the
+	 * query, adapter ID, and is in the index ID will be returned as an instance
+	 * of the native data type that this adapter supports. The iterator will
+	 * only return as many results as the limit passed in.
+	 * 
+	 * @param queryOptions
+	 *            additional options for the processing the query
+	 * @param the
+	 *            data constraints for the query
+	 * @return An iterator on all results that match the query. The iterator
+	 *         implements Closeable and it is best practice to close the
+	 *         iterator after it is no longer needed.
+	 */
 	@Override
 	public <T> CloseableIterator<T> query(
-			final DataAdapter<T> adapter,
-			final Query query,
-			final int limit,
-			final String... additionalAuthorizations ) {
-		return (CloseableIterator<T>) query(
-				Arrays.asList(adapter.getAdapterId()),
+			final QueryOptions queryOptions,
+			final Query query ) {
+		return query(
+				queryOptions,
 				query,
-				limit);
+				false,
+				null);
 	}
 
-	@Override
-	public <T> CloseableIterator<T> query(
-			final Index index,
+	private <T> CloseableIterator<T> query(
+			final QueryOptions queryOptions,
 			final Query query,
-			final int limit,
-			final String... additionalAuthorizations ) {
-		return query(
-				null,
-				index,
-				query,
-				limit,
-				new ScanCallback<T>() {
+			final boolean isDelete,
+			final DataStoreCallbackManager callbackCache ) {
+
+		try (CloseableIterator<Index> indexIt = queryOptions.getIndices(getIndexStore())) {
+			final List<CloseableIterator<T>> results = new ArrayList<CloseableIterator<T>>();
+			while (indexIt.hasNext()) {
+				final Index index = indexIt.next();
+
+				final TreeSet<EntryRow> set = (TreeSet<EntryRow>) getRowsForIndex(index.getId());
+				final Iterator<EntryRow> rowIt = ((query == null) || query.isSupported(index)) ? ((TreeSet<EntryRow>) set.clone()).iterator() : Collections.<EntryRow> emptyIterator();
+				final List<QueryFilter> filters = (query == null) ? new ArrayList<QueryFilter>() : new ArrayList<QueryFilter>(
+						query.createFilters(index.getIndexModel()));
+				filters.add(new QueryFilter() {
+					@Override
+					public boolean accept(
+							CommonIndexModel indexModel,
+							IndexedPersistenceEncoding persistenceEncoding ) {
+						try {
+							for (ByteArrayId id : queryOptions.getAdapterIds(getAdapterStore())) {
+								if (id.equals(persistenceEncoding.getAdapterId())) return true;
+							}
+						}
+						catch (IOException e) {
+							LOGGER.error(
+									"Cannot resolve adapter IDs",
+									e);
+						}
+						return false;
+					}
+				});
+				results.add(new CloseableIterator<T>() {
+					EntryRow nextRow = null;
+					EntryRow currentRow = null;
+					IndexedPersistenceEncoding encoding = null;
+
+					private boolean getNext() {
+						while ((nextRow == null) && rowIt.hasNext()) {
+							final EntryRow row = rowIt.next();
+							DataAdapter<?> adapter = adapterStore.getAdapter(new ByteArrayId(
+									row.getTableRowId().getAdapterId()));
+							encoding = DataStoreUtils.getEncoding(
+									index.getIndexModel(),
+									adapter,
+									row);
+							boolean ok = true;
+							for (final QueryFilter filter : filters) {
+								if (!filter.accept(
+										index.getIndexModel(),
+										encoding)) {
+									ok = false;
+									break;
+								}
+							}
+							ok &= isAuthorized(
+									row,
+									queryOptions.getAuthorizations());
+							if (ok) {
+								nextRow = row;
+								break;
+							}
+						}
+						return (nextRow != null);
+					}
 
 					@Override
-					public void entryScanned(
-							final DataStoreEntryInfo entryInfo,
-							final T entry ) {
-
+					public boolean hasNext() {
+						return getNext();
 					}
-				},
-				additionalAuthorizations);
-	}
-
-	@Override
-	public CloseableIterator<?> query(
-			final List<ByteArrayId> adapterIds,
-			final Query query,
-			final int limit,
-			final String... additionalAuthorizations ) {
-		final CloseableIterator<Index> indexIt = indexStore.getIndices();
-		return new CloseableIterator<Object>() {
-			Iterator<ByteArrayId> adapterIt = adapterIds.iterator();
-			Index index = null;
-			int count = 0;
-			CloseableIterator<Object> dataIt = null;
-
-			private boolean getNext() {
-				while ((dataIt == null) || !dataIt.hasNext()) {
-					if (index == null) {
-						if (indexIt.hasNext()) {
-							index = indexIt.next();
-						}
-						else {
-							return false;
-						}
-					}
-					if ((adapterIt != null) && adapterIt.hasNext()) {
-						dataIt = (CloseableIterator<Object>) query(
-								adapterStore.getAdapter(adapterIt.next()),
-								index,
-								query,
-								-1,
-								new ScanCallback<Object>() {
-
-									@Override
-									public void entryScanned(
-											final DataStoreEntryInfo entryInfo,
-											final Object entry ) {
-
-									}
-								},
-								additionalAuthorizations);
-						continue;
-					}
-					index = null;
-					adapterIt = adapterIds.iterator();
-				}
-
-				return true;
-
-			}
-
-			@Override
-			public boolean hasNext() {
-				return ((limit <= 0) || (count < limit)) && getNext();
-			}
-
-			@Override
-			public Object next() {
-				count++;
-				return dataIt.next();
-			}
-
-			@Override
-			public void remove() {
-				dataIt.remove();
-
-			}
-
-			@Override
-			public void close()
-					throws IOException {
-				indexIt.close();
-			}
-
-		};
-	}
-
-	@Override
-	public <T> CloseableIterator<T> query(
-			final DataAdapter<T> adapter,
-			final Index index,
-			final Query query,
-			final int limit,
-			final String... additionalAuthorizations ) {
-		return query(
-				adapter,
-				index,
-				query,
-				limit,
-				new ScanCallback<T>() {
 
 					@Override
-					public void entryScanned(
-							final DataStoreEntryInfo entryInfo,
-							final T entry ) {
-
-					}
-				},
-				additionalAuthorizations);
-	}
-
-	@Override
-	public <T> CloseableIterator<T> query(
-			final DataAdapter<T> adapter,
-			final Index index,
-			final Query query,
-			final Integer limit,
-			final ScanCallback<?> scanCallback,
-			final String... additionalAuthorizations ) {
-		final TreeSet<EntryRow> set = (TreeSet<EntryRow>) getRowsForIndex(index.getId());
-		final Iterator<EntryRow> rowIt = ((query == null) || query.isSupported(index)) ? ((TreeSet<EntryRow>) set.clone()).iterator() : Collections.<EntryRow> emptyIterator();
-
-		final List<QueryFilter> filters = (query == null) ? new ArrayList<QueryFilter>() : query.createFilters(index.getIndexModel());
-		return new CloseableIterator<T>() {
-			int count = 0;
-			EntryRow nextRow = null;
-			EntryRow currentRow = null;
-
-			private boolean getNext() {
-				while ((nextRow == null) && rowIt.hasNext()) {
-					final EntryRow row = rowIt.next();
-					final IndexedPersistenceEncoding encoding = DataStoreUtils.getEncoding(
-							index.getIndexModel(),
-							row);
-					boolean ok = true;
-					for (final QueryFilter filter : filters) {
-						if (!filter.accept(
-								index.getIndexModel(),
-								encoding)) {
-							ok = false;
-							break;
+					public T next() {
+						currentRow = nextRow;
+						if (isDelete) {
+							DataAdapter<T> adapter = (DataAdapter<T>) adapterStore.getAdapter(encoding.getAdapterId());
+							if (adapter instanceof WritableDataAdapter) callbackCache.getDeleteCallback(
+									(WritableDataAdapter<T>) adapter,
+									index).entryDeleted(
+									currentRow.getInfo(),
+									(T) currentRow.entry);
 						}
+						((ScanCallback<T>) queryOptions.getScanCallback()).entryScanned(
+								currentRow.getInfo(),
+								(T) currentRow.entry);
+						nextRow = null;
+						return (T) currentRow.entry;
 					}
-					if (ok) {
-						count++;
-						nextRow = row;
-						break;
+
+					@Override
+					public void remove() {
+						if (currentRow != null) set.remove(currentRow);
 					}
-				}
-				return (nextRow != null) && ((limit == null) || (limit <= 0) || (count < limit));
-			}
 
-			@Override
-			public boolean hasNext() {
-				return getNext();
+					@Override
+					public void close()
+							throws IOException {
+						ScanCallback<?> callback = queryOptions.getScanCallback();
+						if (callback != null && callback instanceof Closeable) ((Closeable) callback).close();
+					}
+				});
 			}
-
-			@Override
-			public T next() {
-				currentRow = nextRow;
-				((ScanCallback<T>) scanCallback).entryScanned(
-						currentRow.getInfo(),
-						(T) currentRow.entry);
-				nextRow = null;
-				return (T) currentRow.entry;
-			}
-
-			@Override
-			public void remove() {
-				if (currentRow != null) set.remove(currentRow);
-			}
-
-			@Override
-			public void close()
-					throws IOException {}
-		};
+			return new CloseableIteratorWrapper<T>(
+					new Closeable() {
+						@Override
+						public void close()
+								throws IOException {
+							for (final CloseableIterator<?> result : results) {
+								result.close();
+							}
+						}
+					},
+					Iterators.concat(results.iterator()),
+					queryOptions.getLimit());
+		}
+		catch (IOException e) {
+			LOGGER.error(
+					"Cannot process query [" + (query == null ? "all" : query.toString()) + "]",
+					e);
+			return new CloseableIterator.Empty<T>();
+		}
 	}
 
 	private boolean isAuthorized(
@@ -757,26 +369,6 @@ public class MemoryDataStore implements
 			}
 		}
 		return true;
-	}
-
-	@Override
-	public void delete(
-			final Query query,
-			final String... authorizations ) {
-		try (CloseableIterator<?> it = this.query(
-				query,
-				authorizations)) {
-			while (it.hasNext()) {
-				it.next();
-				it.remove();
-			}
-		}
-		catch (final IOException e) {
-			LOGGER.error(
-					"Failed deletetion",
-					e);
-		}
-
 	}
 
 	public AdapterStore getAdapterStore() {

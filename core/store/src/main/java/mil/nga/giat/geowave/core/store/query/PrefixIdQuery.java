@@ -6,31 +6,31 @@ import java.util.List;
 import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.index.NumericIndexStrategy;
 import mil.nga.giat.geowave.core.index.sfc.data.MultiDimensionalNumericData;
-import mil.nga.giat.geowave.core.store.filter.AdapterIdQueryFilter;
+import mil.nga.giat.geowave.core.store.filter.PrefixIdQueryFilter;
 import mil.nga.giat.geowave.core.store.filter.QueryFilter;
 import mil.nga.giat.geowave.core.store.index.CommonIndexModel;
 import mil.nga.giat.geowave.core.store.index.Index;
 
-public class AdapterIdQuery implements
+public class PrefixIdQuery implements
 		Query
 {
-	private ByteArrayId adapterId;
+	private ByteArrayId rowPrefix;
 
-	public AdapterIdQuery(
-			ByteArrayId adapterId ) {
-		this.adapterId = adapterId;
+	public PrefixIdQuery(
+			ByteArrayId rowPrefix ) {
+		this.rowPrefix = rowPrefix;
 	}
 
-	public ByteArrayId getAdapterId() {
-		return adapterId;
+	public ByteArrayId getRowPrefix() {
+		return rowPrefix;
 	}
 
 	@Override
 	public List<QueryFilter> createFilters(
 			CommonIndexModel indexModel ) {
 		List<QueryFilter> filters = new ArrayList<QueryFilter>();
-		filters.add(new AdapterIdQueryFilter(
-				adapterId));
+		filters.add(new PrefixIdQueryFilter(
+				rowPrefix));
 		return filters;
 	}
 

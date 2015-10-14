@@ -3,6 +3,7 @@ package mil.nga.giat.geowave.datastore.accumulo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.List;
 
@@ -16,13 +17,16 @@ import mil.nga.giat.geowave.core.index.sfc.SFCFactory.SFCType;
 import mil.nga.giat.geowave.core.index.sfc.tiered.TieredSFCIndexFactory;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.adapter.statistics.CountDataStatistics;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
 import mil.nga.giat.geowave.core.store.index.CommonIndexModel;
 import mil.nga.giat.geowave.core.store.index.Index;
-import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStore;
-import mil.nga.giat.geowave.datastore.accumulo.BasicAccumuloOperations;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
+import mil.nga.giat.geowave.core.store.query.DataIdQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
+import mil.nga.giat.geowave.core.store.query.RowIdQuery;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStoreStatsTest.TestGeometryAdapter;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloDataStatisticsStore;
 
@@ -70,7 +74,8 @@ public class DeleteWriterTest
 			model);
 
 	@Before
-	public void setUp() {
+	public void setUp()
+			throws IOException {
 
 		try {
 			mockConnector = mockInstance.getConnector(
@@ -95,25 +100,28 @@ public class DeleteWriterTest
 		adapter = new TestGeometryAdapter();
 		final GeometryFactory factory = new GeometryFactory();
 
-		rowId1s = mockDataStore.ingest(
-				adapter,
+		try (IndexWriter indexWriter = mockDataStore.createIndexWriter(
 				index,
-				new AccumuloDataStoreStatsTest.TestGeometry(
-						factory.createLineString(new Coordinate[] {
-							new Coordinate(
-									43.444,
-									28.232),
-							new Coordinate(
-									43.454,
-									28.242),
-							new Coordinate(
-									43.444,
-									28.252),
-							new Coordinate(
-									43.444,
-									28.232),
-						}),
-						"test_pt_1"));
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			rowId1s = indexWriter.write(
+					adapter,
+					new AccumuloDataStoreStatsTest.TestGeometry(
+							factory.createLineString(new Coordinate[] {
+								new Coordinate(
+										43.444,
+										28.232),
+								new Coordinate(
+										43.454,
+										28.242),
+								new Coordinate(
+										43.444,
+										28.252),
+								new Coordinate(
+										43.444,
+										28.232),
+							}),
+							"test_pt_1"));
+		}
 
 	}
 
@@ -126,12 +134,18 @@ public class DeleteWriterTest
 				1,
 				countStats.getCount());
 		assertTrue(rowId1s.size() > 1);
-		assertTrue(mockDataStore.deleteEntry(
-				index,
-				new ByteArrayId(
-						"test_pt_1"),
-				adapter.getAdapterId()));
-		final CloseableIterator it = mockDataStore.query(null);
+		assertTrue(mockDataStore.delete(
+				new QueryOptions(
+						adapter,
+						index),
+				new DataIdQuery(
+						adapter.getAdapterId(),
+						new ByteArrayId(
+								"test_pt_1"))));
+		final CloseableIterator it = mockDataStore.query(
+				new QueryOptions(),
+				new RowIdQuery(
+						rowId1s));
 		assertTrue(!it.hasNext());
 		countStats = (CountDataStatistics) statsStore.getDataStatistics(
 				adapter.getAdapterId(),

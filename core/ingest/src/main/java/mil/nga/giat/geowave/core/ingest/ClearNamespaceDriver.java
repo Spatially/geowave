@@ -4,6 +4,8 @@ import java.util.List;
 
 import mil.nga.giat.geowave.core.cli.CommandLineResult;
 import mil.nga.giat.geowave.core.cli.DataStoreCommandLineOptions;
+import mil.nga.giat.geowave.core.store.query.EverythingQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
@@ -66,7 +68,8 @@ public class ClearNamespaceDriver extends
 		if ((dataStoreOptions.getNamespace() != null) && !dataStoreOptions.getNamespace().isEmpty()) {
 			LOGGER.info("deleting everything in namespace '" + dataStoreOptions.getNamespace() + "'");
 			dataStoreOptions.createStore().delete(
-					null);
+					new QueryOptions(),
+					new EverythingQuery());
 		}
 		else {
 			LOGGER.error("cannot clear a namespace if no namespace is provided");

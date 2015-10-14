@@ -10,6 +10,8 @@ import mil.nga.giat.geowave.adapter.vector.plugin.GeoWavePluginConfig;
 import mil.nga.giat.geowave.adapter.vector.plugin.GeoWavePluginException;
 import mil.nga.giat.geowave.core.store.StoreFactoryFamilySpi;
 import mil.nga.giat.geowave.core.store.memory.MemoryStoreFactoryFamily;
+import mil.nga.giat.geowave.core.store.query.EverythingQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.geotools.data.DataStore;
 
@@ -28,7 +30,8 @@ public class BaseDataStoreTest
 		new GeoWavePluginConfig(
 				storeFactoryFamily,
 				params).getDataStore().delete(
-				null);
+				new QueryOptions(),
+				new EverythingQuery());
 
 		return new GeoWaveGTDataStoreFactory(
 				storeFactoryFamily).createNewDataStore(params);

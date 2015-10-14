@@ -1,11 +1,9 @@
 package mil.nga.giat.geowave.datastore.accumulo.query;
 
-import java.io.IOException;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.index.StringUtils;
@@ -13,18 +11,15 @@ import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.CloseableIteratorWrapper;
 import mil.nga.giat.geowave.core.store.ScanCallback;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
-import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
-import mil.nga.giat.geowave.core.store.dimension.DimensionField;
 import mil.nga.giat.geowave.core.store.filter.FilterList;
 import mil.nga.giat.geowave.core.store.filter.QueryFilter;
-import mil.nga.giat.geowave.core.store.index.CommonIndexValue;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloOperations;
+import mil.nga.giat.geowave.datastore.accumulo.util.AccumuloUtils;
 import mil.nga.giat.geowave.datastore.accumulo.util.EntryIteratorWrapper;
 import mil.nga.giat.geowave.datastore.accumulo.util.ScannerClosableWrapper;
 
 import org.apache.accumulo.core.client.ScannerBase;
-import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 
 import com.google.common.collect.Iterators;
@@ -38,25 +33,17 @@ public abstract class AccumuloFilteredIndexQuery extends
 	private Collection<String> fieldIds = null;
 
 	public AccumuloFilteredIndexQuery(
-			final Index index,
-			final ScanCallback<?> scanCallback,
-			final String... authorizations ) {
-		super(
-				index,
-				authorizations);
-		this.scanCallback = scanCallback;
-	}
-
-	public AccumuloFilteredIndexQuery(
 			final List<ByteArrayId> adapterIds,
 			final Index index,
 			final ScanCallback<?> scanCallback,
+			final Collection<String> fieldIds,
 			final String... authorizations ) {
 		super(
 				adapterIds,
 				index,
 				authorizations);
 		this.scanCallback = scanCallback;
+		setFieldIds(fieldIds != null ? fieldIds : Collections.<String> emptyList());
 	}
 
 	protected List<QueryFilter> getClientFilters() {
@@ -80,7 +67,7 @@ public abstract class AccumuloFilteredIndexQuery extends
 	protected abstract void addScanIteratorSettings(
 			final ScannerBase scanner );
 
-	public CloseableIterator<?> query(
+	public CloseableIterator<Object> query(
 			final AccumuloOperations accumuloOperations,
 			final AdapterStore adapterStore,
 			final Integer limit ) {
@@ -92,7 +79,7 @@ public abstract class AccumuloFilteredIndexQuery extends
 	}
 
 	@SuppressWarnings("rawtypes")
-	public CloseableIterator<?> query(
+	public CloseableIterator<Object> query(
 			final AccumuloOperations accumuloOperations,
 			final AdapterStore adapterStore,
 			final Integer limit,
@@ -108,8 +95,10 @@ public abstract class AccumuloFilteredIndexQuery extends
 		// a subset of fieldIds is being requested
 		if (fieldIds != null && !fieldIds.isEmpty()) {
 			// configure scanner to fetch only the fieldIds specified
-			handleSubsetOfFieldIds(
+			AccumuloUtils.handleSubsetOfFieldIds(
 					scanner,
+					index,
+					fieldIds,
 					adapterStore.getAdapters());
 		}
 
@@ -144,45 +133,4 @@ public abstract class AccumuloFilteredIndexQuery extends
 				scanCallback);
 	}
 
-	private void handleSubsetOfFieldIds(
-			final ScannerBase scanner,
-			final CloseableIterator<DataAdapter<?>> dataAdapters ) {
-
-		Set<ByteArrayId> uniqueDimensions = new HashSet<>();
-		for (final DimensionField<? extends CommonIndexValue> dimension : index.getIndexModel().getDimensions()) {
-			uniqueDimensions.add(dimension.getFieldId());
-		}
-
-		while (dataAdapters.hasNext()) {
-
-			final Text colFam = new Text(
-					dataAdapters.next().getAdapterId().getBytes());
-
-			// dimension fields must be included
-			for (ByteArrayId dimension : uniqueDimensions) {
-				scanner.fetchColumn(
-						colFam,
-						new Text(
-								dimension.getBytes()));
-			}
-
-			// configure scanner to fetch only the specified fieldIds
-			for (String fieldId : fieldIds) {
-				scanner.fetchColumn(
-						colFam,
-						new Text(
-								StringUtils.stringToBinary(fieldId)));
-			}
-		}
-
-		try {
-			dataAdapters.close();
-		}
-		catch (IOException e) {
-			LOGGER.error(
-					"Unable to close iterator",
-					e);
-		}
-
-	}
 }

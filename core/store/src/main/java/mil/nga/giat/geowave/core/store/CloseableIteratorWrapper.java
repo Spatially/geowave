@@ -22,12 +22,23 @@ public class CloseableIteratorWrapper<E> implements
 
 	private final Closeable closeable;
 	private final Iterator<E> iterator;
+	private Integer limit = null;
+	private int count = 0;
 
 	public CloseableIteratorWrapper(
 			final Closeable closable,
 			final Iterator<E> iterator ) {
 		this.closeable = closable;
 		this.iterator = iterator;
+	}
+
+	public CloseableIteratorWrapper(
+			final Closeable closable,
+			final Iterator<E> iterator,
+			Integer limit ) {
+		this.closeable = closable;
+		this.iterator = iterator;
+		this.limit = limit;
 	}
 
 	@Override
@@ -43,11 +54,13 @@ public class CloseableIteratorWrapper<E> implements
 						e);
 			}
 		}
+		if (limit != null && limit > 0 && count > limit) return false;
 		return hasNext;
 	}
 
 	@Override
 	public E next() {
+		count++;
 		return iterator.next();
 	}
 

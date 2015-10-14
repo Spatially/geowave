@@ -20,7 +20,7 @@ public class IndexedAdapterPersistenceEncoding extends
 	public IndexedAdapterPersistenceEncoding(
 			final ByteArrayId adapterId,
 			final ByteArrayId dataId,
-			final ByteArrayId indexId,
+			final ByteArrayId indexInsertionId,
 			final int duplicateCount,
 			final PersistentDataset<? extends CommonIndexValue> commonData,
 			final PersistentDataset<byte[]> unknownData,
@@ -28,7 +28,7 @@ public class IndexedAdapterPersistenceEncoding extends
 		super(
 				adapterId,
 				dataId,
-				indexId,
+				indexInsertionId,
 				duplicateCount,
 				commonData,
 				unknownData);

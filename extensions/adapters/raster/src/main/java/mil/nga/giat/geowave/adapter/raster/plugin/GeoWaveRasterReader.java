@@ -41,6 +41,7 @@ import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
 import mil.nga.giat.geowave.core.store.index.CustomIdIndex;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.query.Query;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.apache.log4j.Logger;
 import org.geotools.coverage.grid.GridCoverage2D;
@@ -734,22 +735,26 @@ public class GeoWaveRasterReader extends
 				targetIndexStrategy = sortedStrategies.firstEntry().getValue();
 			}
 			return geowaveDataStore.query(
-					adapter,
-					new CustomIdIndex(
-							// replace the index strategy with a single
-							// substrategy that fits the target resolution
-							targetIndexStrategy.getIndexStrategy(),
-							rasterIndex.getIndexModel(),
-							rasterIndex.getId()), // make sure the index ID is
-													// the
+					new QueryOptions(
+							adapter,
+							new CustomIdIndex(
+									// replace the index strategy with a single
+									// substrategy that fits the target
+									// resolution
+									targetIndexStrategy.getIndexStrategy(),
+									rasterIndex.getIndexModel(),
+									rasterIndex.getId())), // make sure the
+															// index ID is
+															// the
 					// same as the orginal so that we
 					// are querying the correct table
 					query);
 		}
 		else {
 			return geowaveDataStore.query(
-					adapter,
-					rasterIndex,
+					new QueryOptions(
+							adapter,
+							rasterIndex),
 					query);
 		}
 	}

@@ -1,11 +1,16 @@
 package mil.nga.giat.geowave.datastore.accumulo.query;
 
+import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import mil.nga.giat.geowave.core.index.ByteArrayId;
+import mil.nga.giat.geowave.core.index.sfc.data.MultiDimensionalNumericData;
+import mil.nga.giat.geowave.core.store.ScanCallback;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
+import mil.nga.giat.geowave.core.store.filter.DedupeFilter;
 import mil.nga.giat.geowave.core.store.filter.FilterList;
 import mil.nga.giat.geowave.core.store.filter.QueryFilter;
 import mil.nga.giat.geowave.core.store.index.Index;
@@ -34,25 +39,41 @@ public class InputFormatAccumuloRangeQuery extends
 	private final Range accumuloRange;
 	private final boolean isOutputWritable;
 
+	private static List<ByteArrayId> getAdapterIds(
+			final AdapterStore adapterStore,
+			final QueryOptions queryOptions ) {
+		try {
+			return queryOptions.getAdapterIds(adapterStore);
+		}
+		catch (IOException e) {
+			LOGGER.error(
+					"Adapter IDs not set and unattainable from the AdapterStore",
+					e);
+		}
+		return Collections.emptyList();
+	}
+
 	public InputFormatAccumuloRangeQuery(
-			final List<ByteArrayId> adapterIds,
+			final AdapterStore adapterStore,
 			final Index index,
 			final Range accumuloRange,
 			final List<QueryFilter> queryFilters,
 			final boolean isOutputWritable,
-			final QueryOptions queryOptions,
-			final String[] authorizations ) {
+			final QueryOptions queryOptions ) {
 		super(
-				adapterIds,
+				getAdapterIds(
+						adapterStore,
+						queryOptions),
 				index,
 				null,
 				queryFilters,
-				authorizations);
+				(DedupeFilter) null,
+				queryOptions.getScanCallback(),
+				queryOptions.getFieldIds(),
+				queryOptions.getAuthorizations());
 
 		this.accumuloRange = accumuloRange;
 		this.isOutputWritable = isOutputWritable;
-
-		setFieldIds(queryOptions != null ? queryOptions.getFieldIds() : Collections.<String> emptyList());
 	}
 
 	@Override

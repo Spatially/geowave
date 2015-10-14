@@ -13,6 +13,7 @@ import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.memory.MemoryAdapterStore;
 
 /**
@@ -43,7 +44,9 @@ public class IngestRunData implements
 			final Index index ) {
 		IndexWriter indexWriter = indexIdToWriterCache.get(index.getId());
 		if (indexWriter == null) {
-			indexWriter = dataStore.createIndexWriter(index);
+			indexWriter = dataStore.createIndexWriter(
+					index,
+					DataStoreUtils.DEFAULT_VISIBILITY);
 			indexIdToWriterCache.put(
 					index.getId(),
 					indexWriter);

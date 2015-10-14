@@ -93,6 +93,7 @@ public class EntryIteratorWrapper<T> implements
 	@Override
 	public T next()
 			throws NoSuchElementException {
+		if (nextValue == null) findNext();
 		final T previousNext = nextValue;
 		if (nextValue == null) {
 			throw new NoSuchElementException();

@@ -15,10 +15,13 @@ import mil.nga.giat.geowave.analytic.kmeans.AssociationNotification;
 import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.index.StringUtils;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.StoreFactoryFamilySpi;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
+import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.memory.MemoryAdapterStore;
 import mil.nga.giat.geowave.core.store.memory.MemoryDataStore;
 import mil.nga.giat.geowave.core.store.memory.MemoryIndexStore;
@@ -34,6 +37,22 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 
 public class NestedGroupCentroidAssignmentTest
 {
+
+	private <T> void ingest(
+			DataStore dataStore,
+			WritableDataAdapter<T> adapter,
+			Index index,
+			T entry )
+			throws IOException {
+		try (IndexWriter writer = dataStore.createIndexWriter(
+				index,
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			writer.write(
+					adapter,
+					entry);
+			writer.close();
+		}
+	}
 
 	@Test
 	public void test()
@@ -83,7 +102,8 @@ public class NestedGroupCentroidAssignmentTest
 		final AdapterStore adapterStore = storeFamily.getAdapterStoreFactory().createStore(
 				new HashMap<String, Object>(),
 				namespace);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				level1b1G1Feature);
@@ -107,7 +127,8 @@ public class NestedGroupCentroidAssignmentTest
 				1,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				level1b1G2Feature);
@@ -131,7 +152,8 @@ public class NestedGroupCentroidAssignmentTest
 				2,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				level2b1G1Feature);
@@ -155,7 +177,8 @@ public class NestedGroupCentroidAssignmentTest
 				2,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				level2b1G2Feature);
@@ -180,7 +203,8 @@ public class NestedGroupCentroidAssignmentTest
 				2,
 				1,
 				0);
-		dataStore.ingest(
+		ingest(
+				dataStore,
 				adapter,
 				index,
 				level2B2G1Feature);

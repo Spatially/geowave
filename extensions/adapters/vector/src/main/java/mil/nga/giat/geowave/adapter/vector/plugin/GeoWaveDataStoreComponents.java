@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import mil.nga.giat.geowave.adapter.vector.FeatureDataAdapter;
 import mil.nga.giat.geowave.adapter.vector.plugin.transaction.GeoWaveTransaction;
@@ -12,14 +13,15 @@ import mil.nga.giat.geowave.adapter.vector.plugin.transaction.TransactionsAlloca
 import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.index.StringUtils;
 import mil.nga.giat.geowave.core.store.DataStore;
-import mil.nga.giat.geowave.core.store.DataStoreEntryInfo;
-import mil.nga.giat.geowave.core.store.IngestCallback;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatistics;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
 import mil.nga.giat.geowave.core.store.data.visibility.GlobalVisibilityHandler;
 import mil.nga.giat.geowave.core.store.data.visibility.UniformVisibilityWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
+import mil.nga.giat.geowave.core.store.query.DataIdQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.opengis.feature.simple.SimpleFeature;
 
@@ -92,11 +94,14 @@ public class GeoWaveDataStoreComponents
 			final GeoWaveTransaction transaction )
 			throws IOException {
 
-		dataStore.deleteEntry(
-				currentIndex,
-				adapter.getDataId(feature),
-				adapter.getAdapterId(),
-				transaction.composeAuthorizations());
+		dataStore.delete(
+				new QueryOptions(
+						adapter,
+						currentIndex,
+						transaction.composeAuthorizations()),
+				new DataIdQuery(
+						adapter.getAdapterId(),
+						adapter.getDataId(feature)));
 	}
 
 	public void remove(
@@ -104,63 +109,52 @@ public class GeoWaveDataStoreComponents
 			final GeoWaveTransaction transaction )
 			throws IOException {
 
-		dataStore.deleteEntry(
-				currentIndex,
-				new ByteArrayId(
-						StringUtils.stringToBinary(fid)),
-				adapter.getAdapterId(),
-				transaction.composeAuthorizations());
-	}
+		dataStore.delete(
+				new QueryOptions(
+						adapter,
+						currentIndex,
+						transaction.composeAuthorizations()),
+				new DataIdQuery(
+						new ByteArrayId(
+								StringUtils.stringToBinary(fid)),
+						adapter.getAdapterId()));
 
-	@SuppressWarnings("unchecked")
-	public List<ByteArrayId> write(
-			final SimpleFeature feature,
-			final GeoWaveTransaction transaction )
-			throws IOException {
-		return dataStore.ingest(
-				adapter,
-				currentIndex,
-				feature,
-				new UniformVisibilityWriter<SimpleFeature>(
-						new GlobalVisibilityHandler(
-								transaction.composeVisibility())));
 	}
 
 	@SuppressWarnings("unchecked")
 	public void write(
 			final Iterator<SimpleFeature> featureIt,
-			final Map<String, List<ByteArrayId>> fidList,
+			final Set<String> fidList,
 			final GeoWaveTransaction transaction )
 			throws IOException {
-		dataStore.ingest(
-				adapter,
+		try (IndexWriter indexWriter = dataStore.createIndexWriter(
 				currentIndex,
-				featureIt,
-				new IngestCallback<SimpleFeature>() {
-
-					@Override
-					public void entryIngested(
-							final DataStoreEntryInfo entryInfo,
-							final SimpleFeature entry ) {
-						fidList.put(
-								entry.getID(),
-								entryInfo.getRowIds());
-					}
-
-				},
 				new UniformVisibilityWriter<SimpleFeature>(
 						new GlobalVisibilityHandler(
-								transaction.composeVisibility())));
+								transaction.composeVisibility())))) {
+			while (featureIt.hasNext()) {
+				final SimpleFeature feature = featureIt.next();
+				fidList.add(feature.getID());
+				indexWriter.write(
+						adapter,
+						feature);
+			}
+		}
 	}
 
 	public List<ByteArrayId> writeCommit(
 			final SimpleFeature feature,
 			final GeoWaveTransaction transaction )
 			throws IOException {
-		return dataStore.ingest(
-				adapter,
+		try (IndexWriter indexWriter = dataStore.createIndexWriter(
 				currentIndex,
-				feature);
+				new UniformVisibilityWriter<SimpleFeature>(
+						new GlobalVisibilityHandler(
+								transaction.composeVisibility())))) {
+			return indexWriter.write(
+					adapter,
+					feature);
+		}
 	}
 
 	public String getTransaction()

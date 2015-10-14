@@ -33,11 +33,15 @@ import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.index.StringUtils;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
 import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
+import mil.nga.giat.geowave.core.store.query.DataIdQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.mapreduce.GeoWaveConfiguratorBase;
 
 import org.apache.commons.collections.map.LRUMap;
@@ -295,14 +299,19 @@ public class CentroidManagerGeoWave<T> implements
 	public void delete(
 			final String[] dataIds )
 			throws IOException {
+		final ByteArrayId adapterId = new ByteArrayId(
+				StringUtils.stringToBinary(centroidDataTypeId));
 		for (final String dataId : dataIds) {
+
 			if (dataId != null) {
-				dataStore.deleteEntry(
-						index,
-						new ByteArrayId(
-								StringUtils.stringToBinary(dataId)),
-						new ByteArrayId(
-								StringUtils.stringToBinary(centroidDataTypeId)));
+				dataStore.delete(
+						new QueryOptions(
+								adapterId,
+								index.getId()),
+						new DataIdQuery(
+								adapterId,
+								new ByteArrayId(
+										StringUtils.stringToBinary(dataId))));
 			}
 		}
 	}
@@ -385,7 +394,6 @@ public class CentroidManagerGeoWave<T> implements
 			final String batchID,
 			final String groupID )
 			throws IOException {
-		LOGGER.info("Extracting centroids for " + batchID);
 		final List<AnalyticItemWrapper<T>> centroids = new ArrayList<AnalyticItemWrapper<T>>();
 		try {
 
@@ -421,13 +429,25 @@ public class CentroidManagerGeoWave<T> implements
 	@Override
 	@SuppressWarnings("unchecked")
 	public AnalyticItemWrapper<T> getCentroid(
-			final String id ) {
-		return centroidFactory.create((T) dataStore.getEntry(
-				index,
-				new ByteArrayId(
-						StringUtils.stringToBinary(id)),
-				new ByteArrayId(
-						StringUtils.stringToBinary(centroidDataTypeId))));
+			final String dataId ) {
+		final ByteArrayId adapterId = new ByteArrayId(
+				StringUtils.stringToBinary(centroidDataTypeId));
+		try (CloseableIterator<AnalyticItemWrapper<T>> it = dataStore.query(
+				new QueryOptions(
+						adapterId,
+						index.getId()),
+				new DataIdQuery(
+						adapterId,
+						new ByteArrayId(
+								StringUtils.stringToBinary(dataId))))) {
+			if (it.hasNext()) return it.next();
+		}
+		catch (IOException e) {
+			LOGGER.error(
+					"Failed to fined centroid " + dataId.toString(),
+					e);
+		}
+		return null;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -468,8 +488,9 @@ public class CentroidManagerGeoWave<T> implements
 					batchIdFilter);
 		}
 		return (CloseableIterator<T>) dataStore.query(
-				(FeatureDataAdapter) adapter,
-				index,
+				new QueryOptions(
+						adapter,
+						index),
 				new CQLQuery(
 						null,
 						finalFilter,
@@ -485,16 +506,22 @@ public class CentroidManagerGeoWave<T> implements
 				fromBatchId,
 				groupID);
 		int count = 0;
-		while (it.hasNext()) {
-			final AnalyticItemWrapper<T> item = centroidFactory.create(it.next());
-			item.setBatchID(this.batchId);
-			count++;
-			dataStore.ingest(
-					(WritableDataAdapter<T>) adapter,
-					index,
-					item.getWrappedItem());
+		try (final IndexWriter indexWriter = dataStore.createIndexWriter(
+				index,
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			indexWriter.setupAdapter((WritableDataAdapter<T>) adapter);
+			while (it.hasNext()) {
+				final AnalyticItemWrapper<T> item = centroidFactory.create(it.next());
+				item.setBatchID(this.batchId);
+				count++;
+
+				indexWriter.write(
+						(WritableDataAdapter<T>) adapter,
+						item.getWrappedItem());
+			}
+			it.close();
+			indexWriter.close();
 		}
-		it.close();
 		LOGGER.info("Transfer " + count + " centroids for " + fromBatchId + " to " + batchId);
 	}
 

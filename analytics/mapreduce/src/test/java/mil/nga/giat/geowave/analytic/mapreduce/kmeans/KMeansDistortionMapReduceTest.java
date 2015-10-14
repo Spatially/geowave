@@ -34,7 +34,10 @@ import mil.nga.giat.geowave.core.cli.DataStoreCommandLineOptions;
 import mil.nga.giat.geowave.core.cli.IndexStoreCommandLineOptions;
 import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.index.ByteArrayId;
+import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.memory.MemoryAdapterStoreFactory;
 import mil.nga.giat.geowave.core.store.memory.MemoryDataStoreFactory;
 import mil.nga.giat.geowave.core.store.memory.MemoryIndexStoreFactory;
@@ -185,9 +188,10 @@ public class KMeansDistortionMapReduceTest
 								dataStoreFactory,
 								new HashMap<String, Object>(),
 								TEST_NAMESPACE)));
-		dataStoreFactory.createStore(
-				new HashMap<String, Object>(),
-				TEST_NAMESPACE).ingest(
+		ingest(
+				dataStoreFactory.createStore(
+						new HashMap<String, Object>(),
+						TEST_NAMESPACE),
 				testObjectAdapter,
 				index,
 				feature);
@@ -196,6 +200,22 @@ public class KMeansDistortionMapReduceTest
 				reduceDriver.getConfiguration(),
 				KMeansDistortionMapReduce.class,
 				propManagement);
+	}
+
+	private void ingest(
+			DataStore dataStore,
+			FeatureDataAdapter adapter,
+			Index index,
+			SimpleFeature feature )
+			throws IOException {
+		try (IndexWriter writer = dataStore.createIndexWriter(
+				index,
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			writer.write(
+					adapter,
+					feature);
+			writer.close();
+		}
 	}
 
 	private void serializations() {

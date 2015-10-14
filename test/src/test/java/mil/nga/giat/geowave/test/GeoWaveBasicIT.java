@@ -14,7 +14,6 @@ import java.util.Map;
 
 import mil.nga.giat.geowave.adapter.vector.FeatureDataAdapter;
 import mil.nga.giat.geowave.adapter.vector.stats.FeatureBoundingBoxStatistics;
-import mil.nga.giat.geowave.core.cli.GeoWaveMain;
 import mil.nga.giat.geowave.core.geotime.GeometryUtils;
 import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.geotime.store.query.SpatialQuery;
@@ -24,6 +23,7 @@ import mil.nga.giat.geowave.core.ingest.GeoWaveData;
 import mil.nga.giat.geowave.core.ingest.local.LocalFileIngestPlugin;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.DataStoreEntryInfo;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.IngestCallback;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
 import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
@@ -35,20 +35,21 @@ import mil.nga.giat.geowave.core.store.adapter.statistics.StatisticalDataAdapter
 import mil.nga.giat.geowave.core.store.data.visibility.GlobalVisibilityHandler;
 import mil.nga.giat.geowave.core.store.data.visibility.UniformVisibilityWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.memory.MemoryAdapterStore;
+import mil.nga.giat.geowave.core.store.query.DataIdQuery;
 import mil.nga.giat.geowave.core.store.query.DistributableQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStore;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloAdapterStore;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloDataStatisticsStore;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloIndexStore;
-import mil.nga.giat.geowave.datastore.accumulo.util.AccumuloUtils;
 import mil.nga.giat.geowave.format.geotools.vector.GeoToolsVectorDataStoreIngestPlugin;
 
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.client.TableNotFoundException;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.math.util.MathUtils;
 import org.apache.log4j.Logger;
 import org.geotools.feature.AttributeTypeBuilder;
@@ -292,7 +293,7 @@ public class GeoWaveBasicIT extends
 									adapter.getAdapterId(),
 									cachedValues);
 						}
-						final DataStoreEntryInfo entryInfo = AccumuloUtils.getIngestInfo(
+						final DataStoreEntryInfo entryInfo = DataStoreUtils.getIngestInfo(
 								adapter,
 								index,
 								data.getValue(),
@@ -508,7 +509,8 @@ public class GeoWaveBasicIT extends
 	}
 
 	@Test
-	public void testFeatureSerialization() {
+	public void testFeatureSerialization()
+			throws IOException {
 
 		final Map<Class, Object> args = new HashMap<>();
 		args.put(
@@ -641,13 +643,18 @@ public class GeoWaveBasicIT extends
 				accumuloOperations);
 
 		final SimpleFeature sf = serBuilder.buildFeature("343");
-		geowaveStore.ingest(
-				serAdapter,
+		try (IndexWriter writer = geowaveStore.createIndexWriter(
 				index,
-				sf);
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			writer.write(
+					serAdapter,
+					sf);
+		}
 		final DistributableQuery q = new SpatialQuery(
 				((Geometry) args.get(Geometry.class)).buffer(0.5d));
-		final CloseableIterator<?> iter = geowaveStore.query(q);
+		final CloseableIterator<?> iter = geowaveStore.query(
+				new QueryOptions(),
+				q);
 		boolean foundFeat = false;
 		while (iter.hasNext()) {
 			final Object maybeFeat = iter.next();
@@ -773,11 +780,14 @@ public class GeoWaveBasicIT extends
 		final DistributableQuery query = resourceToQuery(savedFilterResource);
 		final CloseableIterator<?> actualResults;
 		if (index == null) {
-			actualResults = geowaveStore.query(query);
+			actualResults = geowaveStore.query(
+					new QueryOptions(),
+					query);
 		}
 		else {
 			actualResults = geowaveStore.query(
-					index,
+					new QueryOptions(
+							index),
 					query);
 		}
 		final ExpectedResults expectedResults = getExpectedResults(expectedResultsResources);
@@ -840,7 +850,8 @@ public class GeoWaveBasicIT extends
 		final CloseableIterator<?> actualResults;
 
 		actualResults = geowaveStore.query(
-				index,
+				new QueryOptions(
+						index),
 				query);
 
 		SimpleFeature testFeature = null;
@@ -858,22 +869,25 @@ public class GeoWaveBasicIT extends
 			final ByteArrayId adapterId = new ByteArrayId(
 					testFeature.getFeatureType().getTypeName());
 
-			if (geowaveStore.deleteEntry(
-					index,
-					dataId,
-					adapterId)) {
+			if (geowaveStore.delete(
+					new QueryOptions(
+							adapterId,
+							index.getId()),
+					new DataIdQuery(
+							adapterId,
+							dataId))) {
 
-				if (geowaveStore.getEntry(
-						index,
-						dataId,
-						adapterId) == null) {
-					success = true;
-				}
+				success = !geowaveStore.query(
+						new QueryOptions(
+								adapterId,
+								index.getId()),
+						new DataIdQuery(
+								adapterId,
+								dataId)).hasNext();
 			}
 		}
 		Assert.assertTrue(
 				"Unable to delete entry by data ID and adapter ID",
 				success);
 	}
-
 }

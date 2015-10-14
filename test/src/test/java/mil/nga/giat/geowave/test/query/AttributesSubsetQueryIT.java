@@ -13,7 +13,11 @@ import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.geotime.store.query.SpatialQuery;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
+import mil.nga.giat.geowave.core.store.ScanCallback;
+import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStore;
 import mil.nga.giat.geowave.test.GeoWaveTestEnvironment;
@@ -86,7 +90,9 @@ public class AttributesSubsetQueryIT extends
 			throws IOException {
 
 		final CloseableIterator<SimpleFeature> matches = dataStore.query(
-				INDEX,
+				new QueryOptions(
+						dataAdapter,
+						INDEX),
 				new SpatialQuery(
 						GeometryUtils.GEOMETRY_FACTORY.toGeometry(new Envelope(
 								GUADALAJARA,
@@ -107,13 +113,17 @@ public class AttributesSubsetQueryIT extends
 		final List<String> attributesSubset = Arrays.asList(CITY_ATTRIBUTE);
 
 		final CloseableIterator<SimpleFeature> results = dataStore.query(
-				INDEX,
+				new QueryOptions(
+						attributesSubset,
+						dataAdapter,
+						INDEX,
+						-1,
+						null,
+						new String[0]),
 				new SpatialQuery(
 						GeometryUtils.GEOMETRY_FACTORY.toGeometry(new Envelope(
 								GUADALAJARA,
-								ATLANTA))),
-				new QueryOptions(
-						attributesSubset));
+								ATLANTA))));
 
 		// query expects to match 3 cities from Texas, which should each contain
 		// non-null values for a subset of attributes (city) and nulls for the
@@ -133,13 +143,17 @@ public class AttributesSubsetQueryIT extends
 				POPULATION_ATTRIBUTE);
 
 		final CloseableIterator<SimpleFeature> results = dataStore.query(
-				INDEX,
+				new QueryOptions(
+						attributesSubset,
+						dataAdapter,
+						INDEX,
+						-1,
+						null,
+						new String[0]),
 				new SpatialQuery(
 						GeometryUtils.GEOMETRY_FACTORY.toGeometry(new Envelope(
 								GUADALAJARA,
-								ATLANTA))),
-				new QueryOptions(
-						attributesSubset));
+								ATLANTA))));
 
 		// query expects to match 3 cities from Texas, which should each contain
 		// non-null values for a subset of attributes (city, population) and
@@ -210,15 +224,21 @@ public class AttributesSubsetQueryIT extends
 		return type;
 	}
 
-	private static void ingestSampleData() {
+	private static void ingestSampleData()
+			throws IOException {
 
 		LOGGER.info("Ingesting canned data...");
 
-		dataStore.ingest(
-				dataAdapter,
+		try (IndexWriter writer = dataStore.createIndexWriter(
 				INDEX,
-				buildCityDataSet().iterator());
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			for (SimpleFeature sf : buildCityDataSet()) {
+				writer.write(
+						dataAdapter,
+						sf);
+			}
 
+		}
 		LOGGER.info("Ingest complete.");
 	}
 

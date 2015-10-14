@@ -43,7 +43,7 @@ abstract public class MapReduceTestEnvironment extends
 		String[] args = null;
 		synchronized (MUTEX) {
 			args = StringUtils.split(
-					"-hdfsingest -f gpx -hdfs " + hdfs + " -hdfsbase " + hdfsBaseDirectory + " -jobtracker " + jobtracker + " -b " + ingestFilePath + " -datastore accumulo -" + BasicAccumuloOperations.ZOOKEEPER_CONFIG_NAME + " " + zookeeper + " -" + BasicAccumuloOperations.INSTANCE_CONFIG_NAME + " " + accumuloInstance + " -" + BasicAccumuloOperations.USER_CONFIG_NAME + " " + accumuloUser + " -" + BasicAccumuloOperations.PASSWORD_CONFIG_NAME + " " + accumuloPassword + " -" + GenericStoreCommandLineOptions.NAMESPACE_OPTION_KEY + " " + TEST_NAMESPACE + " -dim " + (indexType.equals(IndexType.SPATIAL_VECTOR) ? "spatial" : "spatial-temporal"),
+					"-hdfsingest -f gpx -hdfs " + hdfs + " -hdfsbase " + hdfsBaseDirectory + " -jobtracker " + jobtracker + " -b " + ingestFilePath + " -" + GenericStoreCommandLineOptions.NAMESPACE_OPTION_KEY + " " + TEST_NAMESPACE + " -dim " + (indexType.equals(IndexType.SPATIAL_VECTOR) ? "spatial" : "spatial-temporal") + " -datastore accumulo -" + BasicAccumuloOperations.ZOOKEEPER_CONFIG_NAME + " " + zookeeper + " -" + BasicAccumuloOperations.INSTANCE_CONFIG_NAME + " " + accumuloInstance + " -" + BasicAccumuloOperations.USER_CONFIG_NAME + " " + accumuloUser + " -" + BasicAccumuloOperations.PASSWORD_CONFIG_NAME + " " + accumuloPassword ,
 					' ');
 		}
 		GeoWaveMain.run(args);

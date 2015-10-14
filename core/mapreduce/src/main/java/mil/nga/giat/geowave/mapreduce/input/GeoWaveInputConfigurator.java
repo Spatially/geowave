@@ -1,7 +1,5 @@
 package mil.nga.giat.geowave.mapreduce.input;
 
-import java.util.Map;
-
 import mil.nga.giat.geowave.core.index.ByteArrayUtils;
 import mil.nga.giat.geowave.core.index.PersistenceUtils;
 import mil.nga.giat.geowave.core.store.index.Index;
@@ -24,7 +22,6 @@ public class GeoWaveInputConfigurator extends
 	protected static enum InputConfig {
 		QUERY,
 		QUERY_OPTIONS,
-		AUTHORIZATION,
 		MIN_SPLITS,
 		MAX_SPLITS,
 		OUTPUT_WRITABLE // used to inform the input format to output a Writable
@@ -201,41 +198,6 @@ public class GeoWaveInputConfigurator extends
 					implementingClass,
 					InputConfig.MAX_SPLITS));
 		}
-	}
-
-	public static void addAuthorization(
-			final Class<?> implementingClass,
-			final Configuration config,
-			final String authorization ) {
-		if (authorization != null) {
-			config.set(
-					enumToConfKey(
-							implementingClass,
-							InputConfig.AUTHORIZATION,
-							authorization),
-					authorization);
-		}
-	}
-
-	public static String[] getAuthorizations(
-			final Class<?> implementingClass,
-			final JobContext context ) {
-		return getAuthorizationsInternal(
-				implementingClass,
-				getConfiguration(context));
-	}
-
-	private static String[] getAuthorizationsInternal(
-			final Class<?> implementingClass,
-			final Configuration configuration ) {
-		final Map<String, String> input = configuration.getValByRegex(enumToConfKey(
-				implementingClass,
-				InputConfig.AUTHORIZATION) + "*");
-		if (input != null) {
-			return input.values().toArray(
-					new String[] {});
-		}
-		return new String[] {};
 	}
 
 	public static Index[] searchForIndices(

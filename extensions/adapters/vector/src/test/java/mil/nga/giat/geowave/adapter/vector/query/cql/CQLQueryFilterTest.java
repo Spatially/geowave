@@ -64,19 +64,32 @@ public class CQLQueryFilterTest
 				exp1,
 				exp2,
 				false);
-		
-		FeatureDataAdapter adapter = new FeatureDataAdapter(type);
-		final CQLQuery cqlQuery = new CQLQuery(null,f,adapter);
+
+		FeatureDataAdapter adapter = new FeatureDataAdapter(
+				type);
+		final CQLQuery cqlQuery = new CQLQuery(
+				null,
+				f,
+				adapter);
 		final List<QueryFilter> filters = cqlQuery.createFilters(IndexType.SPATIAL_VECTOR.getDefaultIndexModel());
 		final List<DistributableQueryFilter> dFilters = new ArrayList<DistributableQueryFilter>();
 		for (final QueryFilter filter : filters) {
-		dFilters.add((DistributableQueryFilter)filter);
+			dFilters.add((DistributableQueryFilter) filter);
 		}
-		
-		final DistributableFilterList dFilterList = new DistributableFilterList(dFilters);
-		final DistributableFilterList dFilterList2 = (DistributableFilterList)PersistenceUtils.fromBinary(PersistenceUtils.toBinary(dFilterList),DistributableQueryFilter.class);
-		assertTrue(dFilterList.accept(IndexType.SPATIAL_VECTOR.getDefaultIndexModel(),
-				DataStoreUtils.getEncodings(IndexType.SPATIAL_VECTOR.createDefaultIndex(),adapter.encode(createFeature(),IndexType.SPATIAL_VECTOR.getDefaultIndexModel())).get(0)));
+
+		final DistributableFilterList dFilterList = new DistributableFilterList(
+				dFilters);
+		final DistributableFilterList dFilterList2 = (DistributableFilterList) PersistenceUtils.fromBinary(
+				PersistenceUtils.toBinary(dFilterList),
+				DistributableQueryFilter.class);
+		assertTrue(dFilterList2.accept(
+				IndexType.SPATIAL_VECTOR.getDefaultIndexModel(),
+				DataStoreUtils.getEncodings(
+						IndexType.SPATIAL_VECTOR.createDefaultIndex(),
+						adapter.encode(
+								createFeature(),
+								IndexType.SPATIAL_VECTOR.getDefaultIndexModel())).get(
+						0)));
 	}
 
 	private SimpleFeature createFeature() {
@@ -89,7 +102,7 @@ public class CQLQueryFilterTest
 				Long.valueOf(100));
 		instance.setAttribute(
 				"pid",
-				UUID.randomUUID().toString());
+				"a89dhd-123-abc");
 		instance.setAttribute(
 				"geom",
 				factory.createPoint(new Coordinate(

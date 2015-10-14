@@ -29,6 +29,8 @@ import mil.nga.giat.geowave.core.store.index.CommonIndexValue;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
 import mil.nga.giat.geowave.core.store.index.NullIndex;
+import mil.nga.giat.geowave.core.store.query.EverythingQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.io.Writable;
@@ -80,9 +82,10 @@ public class DistortionGroupManagement
 			// row id is group id
 			// colQual is cluster count
 			try (CloseableIterator<DistortionEntry> it = dataStore.query(
-					new DistortionDataAdapter(),
-					DISTORTIONS_INDEX,
-					null)) {
+					new QueryOptions(
+							new DistortionDataAdapter(),
+							DISTORTIONS_INDEX),
+					new EverythingQuery())) {
 				while (it.hasNext()) {
 					final DistortionEntry entry = it.next();
 					final String groupID = entry.getGroupId();

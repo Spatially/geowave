@@ -8,6 +8,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -34,6 +35,8 @@ import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatistics;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.query.BasicQuery;
 import mil.nga.giat.geowave.core.store.query.BasicQuery.Constraints;
+import mil.nga.giat.geowave.core.store.query.DataIdQuery;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 
 import org.apache.log4j.Logger;
 import org.geotools.data.FeatureReader;
@@ -232,27 +235,18 @@ public class GeoWaveFeatureReader implements
 		public CloseableIterator<SimpleFeature> query(
 				final Index index,
 				final mil.nga.giat.geowave.core.store.query.Query query ) {
-			if ((limit != null) && (limit >= 0)) {
-				return components.getDataStore().query(
-						components.getAdapter(),
-						index,
-						new CQLQuery(
-								query,
-								filter,
-								components.getAdapter()),
-						limit,
-						transaction.composeAuthorizations());
-			}
-			else {
-				return components.getDataStore().query(
-						components.getAdapter(),
-						index,
-						new CQLQuery(
-								query,
-								filter,
-								components.getAdapter()),
-						transaction.composeAuthorizations());
-			}
+			return components.getDataStore().query(
+					new QueryOptions(
+							Collections.EMPTY_LIST,
+							components.getAdapter(),
+							index,
+							limit,
+							null,
+							transaction.composeAuthorizations()),
+					new CQLQuery(
+							query,
+							filter,
+							components.getAdapter()));
 		}
 
 		public Filter getFilter() {
@@ -370,10 +364,18 @@ public class GeoWaveFeatureReader implements
 		public CloseableIterator<SimpleFeature> query(
 				final Index index,
 				final mil.nga.giat.geowave.core.store.query.Query query ) {
+			return components.getDataStore().query(
+					new QueryOptions(
+							Collections.EMPTY_LIST,
+							components.getAdapter(),
+							index,
+							limit,
+							null,
+							transaction.composeAuthorizations()),
+					new DataIdQuery(
+							components.getAdapter().getAdapterId(),
+							ids));
 
-			return (CloseableIterator<SimpleFeature>) components.getDataStore().query(
-					ids,
-					query);
 		}
 
 	}
@@ -431,18 +433,24 @@ public class GeoWaveFeatureReader implements
 			final Filter filter,
 			final Integer limit ) {
 		if (filter instanceof FidFilterImpl) {
-			final List<SimpleFeature> retVal = new ArrayList<SimpleFeature>();
 			final Set<String> fids = ((FidFilterImpl) filter).getIDs();
+			final List<ByteArrayId> ids = new ArrayList<ByteArrayId>();
 			for (final String fid : fids) {
-				retVal.add((SimpleFeature) components.getDataStore().getEntry(
-						components.getCurrentIndex(),
-						new ByteArrayId(
-								fid),
-						components.getAdapter().getAdapterId(),
-						transaction.composeAuthorizations()));
+				ids.add(new ByteArrayId(
+						fid));
 			}
-			return new CloseableIterator.Wrapper(
-					retVal.iterator());
+
+			return components.getDataStore().query(
+					new QueryOptions(
+							Collections.EMPTY_LIST,
+							components.getAdapter(),
+							components.getCurrentIndex(),
+							limit,
+							null,
+							transaction.composeAuthorizations()),
+					new DataIdQuery(
+							components.getAdapter().getAdapterId(),
+							ids));
 		}
 		return issueQuery(
 				jtsBounds,

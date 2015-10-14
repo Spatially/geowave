@@ -9,6 +9,7 @@ import mil.nga.giat.geowave.core.store.DataStoreEntryInfo.FieldInfo;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.data.VisibilityWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 
 import org.apache.accumulo.core.data.Key;
 import org.apache.accumulo.core.data.Value;
@@ -51,7 +52,7 @@ public class AccumuloKeyValuePairGenerator<T>
 		Key key;
 		Value value;
 		AccumuloKeyValuePair keyValuePair;
-		DataStoreEntryInfo ingestInfo = AccumuloUtils.getIngestInfo(
+		DataStoreEntryInfo ingestInfo = DataStoreUtils.getIngestInfo(
 				adapter,
 				index,
 				entry,

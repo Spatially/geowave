@@ -19,6 +19,7 @@ import mil.nga.giat.geowave.core.store.adapter.statistics.CountDataStatistics;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.query.Query;
+import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStore;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloAdapterStore;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloDataStatisticsStore;
@@ -122,8 +123,9 @@ public class BasicKafkaIT extends
 				accumuloOperations);
 
 		final CloseableIterator<?> accumuloResults = geowaveStore.query(
-				adapter,
-				INDEX,
+				new QueryOptions(
+						adapter,
+						INDEX),
 				query);
 
 		int resultCount = 0;

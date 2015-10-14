@@ -265,6 +265,43 @@ public class TieredSFCIndexStrategy implements
 	}
 
 	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + Arrays.hashCode(baseDefinitions);
+		result = prime * result + (int) (maxEstimatedDuplicateIds ^ (maxEstimatedDuplicateIds >>> 32));
+		result = prime * result + ((maxEstimatedDuplicateIdsBigInteger == null) ? 0 : maxEstimatedDuplicateIdsBigInteger.hashCode());
+		result = prime * result + ((orderedSfcIndexToTierId == null) ? 0 : orderedSfcIndexToTierId.hashCode());
+		result = prime * result + Arrays.hashCode(orderedSfcs);
+		return result;
+	}
+
+	@Override
+	public boolean equals(
+			Object obj ) {
+		if (this == obj) return true;
+		if (obj == null) return false;
+		if (getClass() != obj.getClass()) return false;
+		TieredSFCIndexStrategy other = (TieredSFCIndexStrategy) obj;
+		if (!Arrays.equals(
+				baseDefinitions,
+				other.baseDefinitions)) return false;
+		if (maxEstimatedDuplicateIds != other.maxEstimatedDuplicateIds) return false;
+		if (maxEstimatedDuplicateIdsBigInteger == null) {
+			if (other.maxEstimatedDuplicateIdsBigInteger != null) return false;
+		}
+		else if (!maxEstimatedDuplicateIdsBigInteger.equals(other.maxEstimatedDuplicateIdsBigInteger)) return false;
+		if (orderedSfcIndexToTierId == null) {
+			if (other.orderedSfcIndexToTierId != null) return false;
+		}
+		else if (!orderedSfcIndexToTierId.equals(other.orderedSfcIndexToTierId)) return false;
+		if (!Arrays.equals(
+				orderedSfcs,
+				other.orderedSfcs)) return false;
+		return true;
+	}
+
+	@Override
 	public String getId() {
 		return StringUtils.intToString(hashCode());
 	}

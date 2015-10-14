@@ -196,9 +196,10 @@ public class GeoWaveInputFormat<T> extends
 
 	protected static QueryOptions getQueryOptions(
 			final JobContext context ) {
-		return GeoWaveInputConfigurator.getQueryOptions(
+		final QueryOptions options = GeoWaveInputConfigurator.getQueryOptions(
 				CLASS,
 				context);
+		return options == null ? new QueryOptions() : options;
 	}
 
 	protected static Index[] getIndices(
@@ -239,15 +240,6 @@ public class GeoWaveInputFormat<T> extends
 				context);
 	}
 
-	public static void addAuthorization(
-			final Configuration config,
-			final String authorization ) {
-		GeoWaveInputConfigurator.addAuthorization(
-				CLASS,
-				config,
-				authorization);
-	}
-
 	@Override
 	public RecordReader<GeoWaveInputKey, T> createRecordReader(
 			final InputSplit split,
@@ -261,19 +253,22 @@ public class GeoWaveInputFormat<T> extends
 				namespace);
 		final AdapterStore adapterStore = getJobContextAdapterStore(context);
 		if ((dataStore != null) && (dataStore instanceof MapReduceDataStore)) {
+			final QueryOptions queryOptions = getQueryOptions(context);
+			final QueryOptions rangeQueryOptions = new QueryOptions(
+					queryOptions);
+			// split may override these
+			rangeQueryOptions.setIndices(getIndices(context));
+			rangeQueryOptions.setAdapterIds(getAdapterIds(
+					context,
+					adapterStore));
 			return (RecordReader<GeoWaveInputKey, T>) ((MapReduceDataStore) dataStore).createRecordReader(
-					getIndices(context),
-					getAdapterIds(
-							context,
-							adapterStore),
 					getQuery(context),
-					getQueryOptions(context),
+					rangeQueryOptions,
 					adapterStore,
 					getJobContextDataStatisticsStore(context),
 					getJobContextIndexStore(context),
 					isOutputWritable(
 							context).booleanValue(),
-					getAuthorizations(context),
 					split);
 		}
 		LOGGER.error("Data Store does not support map reduce");
@@ -377,13 +372,6 @@ public class GeoWaveInputFormat<T> extends
 				context);
 	}
 
-	protected static String[] getAuthorizations(
-			final JobContext context ) {
-		return GeoWaveInputConfigurator.getAuthorizations(
-				CLASS,
-				context);
-	}
-
 	/**
 	 * First look for input-specific adapters
 	 * 
@@ -434,17 +422,19 @@ public class GeoWaveInputFormat<T> extends
 				namespace);
 		final AdapterStore adapterStore = getJobContextAdapterStore(context);
 		if ((dataStore != null) && (dataStore instanceof MapReduceDataStore)) {
+			final QueryOptions queryOptions = getQueryOptions(context);
+			final QueryOptions rangeQueryOptions = new QueryOptions(
+					queryOptions);
+			rangeQueryOptions.setIndices(getIndices(context));
+			rangeQueryOptions.setAdapterIds(getAdapterIds(
+					context,
+					adapterStore));
 			return ((MapReduceDataStore) dataStore).getSplits(
-					getIndices(context),
-					getAdapterIds(
-							context,
-							adapterStore),
 					getQuery(context),
-					getQueryOptions(context),
+					rangeQueryOptions,
 					adapterStore,
 					getJobContextDataStatisticsStore(context),
 					getJobContextIndexStore(context),
-					getAuthorizations(context),
 					getMinimumSplitCount(context),
 					getMaximumSplitCount(context));
 		}

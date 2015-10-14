@@ -15,6 +15,7 @@ import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.config.ConfigUtils;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.mapreduce.GeoWaveConfiguratorBase;
 import mil.nga.giat.geowave.mapreduce.JobContextAdapterStore;
 import mil.nga.giat.geowave.mapreduce.JobContextIndexStore;
@@ -332,7 +333,9 @@ public class GeoWaveOutputFormat extends
 				final Index index = indexStore.getIndex(indexId);
 				IndexWriter writer = null;
 				if (index != null) {
-					writer = dataStore.createIndexWriter(index);
+					writer = dataStore.createIndexWriter(
+							index,
+							DataStoreUtils.DEFAULT_VISIBILITY);
 				}
 				else {
 					LOGGER.warn("Index '" + StringUtils.stringFromBinary(indexId.getBytes()) + "' does not exist");

@@ -1,13 +1,10 @@
 package mil.nga.giat.geowave.adapter.vector.plugin.transaction;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
 
 import mil.nga.giat.geowave.adapter.vector.plugin.GeoWaveDataStoreComponents;
 import mil.nga.giat.geowave.core.store.CloseableIterator;
 
-import org.geotools.data.Query;
 import org.geotools.data.Transaction;
 import org.geotools.factory.Hints;
 import org.geotools.geometry.jts.ReferencedEnvelope;
@@ -68,12 +65,14 @@ public class GeoWaveEmptyTransaction implements
 					this);
 			this.components.writeCommit(
 					updated,
-					this);
+					new GeoWaveEmptyTransaction(
+							components));
 		}
 		else {
 			this.components.writeCommit(
 					updated,
-					this);
+					new GeoWaveEmptyTransaction(
+							components));
 		}
 
 		ReferencedEnvelope bounds = new ReferencedEnvelope();

@@ -19,18 +19,19 @@ import java.util.TreeSet;
 import mil.nga.giat.geowave.core.index.ByteArrayId;
 import mil.nga.giat.geowave.core.index.NumericIndexStrategy;
 import mil.nga.giat.geowave.core.index.sfc.data.MultiDimensionalNumericData;
+import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
 import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsStore;
 import mil.nga.giat.geowave.core.store.adapter.statistics.RowRangeDataStatistics;
 import mil.nga.giat.geowave.core.store.adapter.statistics.RowRangeHistogramStatistics;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.query.DistributableQuery;
 import mil.nga.giat.geowave.core.store.query.QueryOptions;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloOperations;
 import mil.nga.giat.geowave.datastore.accumulo.mapreduce.input.RangeLocationPair;
 import mil.nga.giat.geowave.datastore.accumulo.util.AccumuloUtils;
-import mil.nga.giat.geowave.mapreduce.input.GeoWaveInputFormat;
 
 import org.apache.accumulo.core.client.AccumuloException;
 import org.apache.accumulo.core.client.AccumuloSecurityException;
@@ -72,14 +73,11 @@ public class AccumuloMRUtils
 	 */
 	public static List<InputSplit> getSplits(
 			final AccumuloOperations operations,
-			final Index[] indices,
-			final List<ByteArrayId> adapterIds,
 			final DistributableQuery query,
 			final QueryOptions queryOptions,
 			final AdapterStore adapterStore,
 			final DataStatisticsStore statsStore,
 			final IndexStore indexStore,
-			final String[] additionalAuthorizations,
 			final Integer minSplits,
 			final Integer maxSplits )
 			throws IOException,
@@ -87,60 +85,65 @@ public class AccumuloMRUtils
 
 		final Map<Index, RowRangeHistogramStatistics<?>> statsCache = new HashMap<Index, RowRangeHistogramStatistics<?>>();
 
-		final TreeSet<IntermediateSplitInfo> splits = getIntermediateSplits(
-				operations,
-				indices,
-				adapterIds,
-				statsCache,
-				adapterStore,
-				statsStore,
-				maxSplits,
-				query,
-				additionalAuthorizations);
+		try (CloseableIterator<Index> indices = queryOptions.getIndices(indexStore)) {
+			final TreeSet<IntermediateSplitInfo> splits = getIntermediateSplits(
+					operations,
+					indices,
+					queryOptions.getAdapterIds(adapterStore),
+					statsCache,
+					adapterStore,
+					statsStore,
+					maxSplits,
+					query,
+					queryOptions.getAuthorizations());
 
-		// this is an incremental algorithm, it may be better use the target
-		// split count to drive it (ie. to get 3 splits this will split 1 large
-		// range into two down the middle and then split one of those ranges
-		// down the middle to get 3, rather than splitting one range into
-		// thirds)
-		if (!statsCache.isEmpty() && !splits.isEmpty() && (minSplits != null) && (splits.size() < minSplits)) {
-			// set the ranges to at least min splits
-			do {
-				// remove the highest range, split it into 2 and add both back,
-				// increasing the size by 1
-				final IntermediateSplitInfo highestSplit = splits.pollLast();
-				final IntermediateSplitInfo otherSplit = highestSplit.split(statsCache);
-				splits.add(highestSplit);
-				if (otherSplit == null) {
-					LOGGER.warn("Cannot meet minimum splits");
-					break;
+			// this is an incremental algorithm, it may be better use the target
+			// split count to drive it (ie. to get 3 splits this will split 1
+			// large
+			// range into two down the middle and then split one of those ranges
+			// down the middle to get 3, rather than splitting one range into
+			// thirds)
+			if (!statsCache.isEmpty() && !splits.isEmpty() && (minSplits != null) && (splits.size() < minSplits)) {
+				// set the ranges to at least min splits
+				do {
+					// remove the highest range, split it into 2 and add both
+					// back,
+					// increasing the size by 1
+					final IntermediateSplitInfo highestSplit = splits.pollLast();
+					final IntermediateSplitInfo otherSplit = highestSplit.split(statsCache);
+					splits.add(highestSplit);
+					if (otherSplit == null) {
+						LOGGER.warn("Cannot meet minimum splits");
+						break;
+					}
+					splits.add(otherSplit);
 				}
-				splits.add(otherSplit);
+				while (splits.size() < minSplits);
 			}
-			while (splits.size() < minSplits);
-		}
-		else if (((maxSplits != null) && (maxSplits > 0)) && (splits.size() > maxSplits)) {
-			// merge splits to fit within max splits
-			do {
-				// this is the naive approach, remove the lowest two ranges and
-				// merge them, decreasing the size by 1
+			else if (((maxSplits != null) && (maxSplits > 0)) && (splits.size() > maxSplits)) {
+				// merge splits to fit within max splits
+				do {
+					// this is the naive approach, remove the lowest two ranges
+					// and
+					// merge them, decreasing the size by 1
 
-				// TODO Ideally merge takes into account locations (as well as
-				// possibly the index as a secondary criteria) to limit the
-				// number of locations/indices
-				final IntermediateSplitInfo lowestSplit = splits.pollFirst();
-				final IntermediateSplitInfo nextLowestSplit = splits.pollFirst();
-				lowestSplit.merge(nextLowestSplit);
-				splits.add(lowestSplit);
+					// TODO Ideally merge takes into account locations (as well
+					// as
+					// possibly the index as a secondary criteria) to limit the
+					// number of locations/indices
+					final IntermediateSplitInfo lowestSplit = splits.pollFirst();
+					final IntermediateSplitInfo nextLowestSplit = splits.pollFirst();
+					lowestSplit.merge(nextLowestSplit);
+					splits.add(lowestSplit);
+				}
+				while (splits.size() > maxSplits);
 			}
-			while (splits.size() > maxSplits);
+			final List<InputSplit> retVal = new ArrayList<InputSplit>();
+			for (final IntermediateSplitInfo split : splits) {
+				retVal.add(split.toFinalSplit());
+			}
+			return retVal;
 		}
-		final List<InputSplit> retVal = new ArrayList<InputSplit>();
-		for (final IntermediateSplitInfo split : splits) {
-			retVal.add(split.toFinalSplit());
-		}
-
-		return retVal;
 	}
 
 	private static final BigInteger ONE = new BigInteger(
@@ -211,7 +214,7 @@ public class AccumuloMRUtils
 
 	private static TreeSet<IntermediateSplitInfo> getIntermediateSplits(
 			final AccumuloOperations operations,
-			final Index[] indices,
+			final CloseableIterator<Index> indices,
 			final List<ByteArrayId> adapterIds,
 			final Map<Index, RowRangeHistogramStatistics<?>> statsCache,
 			final AdapterStore adapterStore,
@@ -223,7 +226,8 @@ public class AccumuloMRUtils
 
 		final TreeSet<IntermediateSplitInfo> splits = new TreeSet<IntermediateSplitInfo>();
 
-		for (final Index index : indices) {
+		while (indices.hasNext()) {
+			final Index index = indices.next();
 			if ((query != null) && !query.isSupported(index)) {
 				continue;
 			}
@@ -256,13 +260,13 @@ public class AccumuloMRUtils
 			if (query != null) {
 				final MultiDimensionalNumericData indexConstraints = query.getIndexConstraints(indexStrategy);
 				if ((maxSplits != null) && (maxSplits > 0)) {
-					ranges = AccumuloUtils.byteArrayRangesToAccumuloRanges(AccumuloUtils.constraintsToByteArrayRanges(
+					ranges = AccumuloUtils.byteArrayRangesToAccumuloRanges(DataStoreUtils.constraintsToByteArrayRanges(
 							indexConstraints,
 							indexStrategy,
 							maxSplits));
 				}
 				else {
-					ranges = AccumuloUtils.byteArrayRangesToAccumuloRanges(AccumuloUtils.constraintsToByteArrayRanges(
+					ranges = AccumuloUtils.byteArrayRangesToAccumuloRanges(DataStoreUtils.constraintsToByteArrayRanges(
 							indexConstraints,
 							indexStrategy));
 				}

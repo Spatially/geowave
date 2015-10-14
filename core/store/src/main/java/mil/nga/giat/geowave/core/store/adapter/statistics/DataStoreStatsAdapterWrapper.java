@@ -7,29 +7,35 @@ import mil.nga.giat.geowave.core.store.adapter.AdapterPersistenceEncoding;
 import mil.nga.giat.geowave.core.store.adapter.DataAdapter;
 import mil.nga.giat.geowave.core.store.adapter.IndexedAdapterPersistenceEncoding;
 import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
-import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatistics;
-import mil.nga.giat.geowave.core.store.adapter.statistics.DataStatisticsVisibilityHandler;
-import mil.nga.giat.geowave.core.store.adapter.statistics.EmptyStatisticVisibility;
-import mil.nga.giat.geowave.core.store.adapter.statistics.RowRangeDataStatistics;
-import mil.nga.giat.geowave.core.store.adapter.statistics.RowRangeHistogramStatistics;
-import mil.nga.giat.geowave.core.store.adapter.statistics.StatisticalDataAdapter;
 import mil.nga.giat.geowave.core.store.data.field.FieldReader;
 import mil.nga.giat.geowave.core.store.data.field.FieldWriter;
 import mil.nga.giat.geowave.core.store.index.CommonIndexModel;
 import mil.nga.giat.geowave.core.store.index.Index;
 
-public class DataAdapterStatsWrapper<T> implements
+/*
+ * The name is bit amusing. 
+ * This class is used by the DataStores to add additional data store specific statistics such as row ranges and histograms.
+ * The class wraps an adapter, overriding the methods {@link DataStoreStatsAdapterWrapper#getSupportedStatisticsIds} and 
+ *   {@link DataStoreStatsAdapterWrapper#createDataStatistics}.
+ * 
+ */
+public class DataStoreStatsAdapterWrapper<T> implements
 		StatisticalDataAdapter<T>
 {
 
-	final DataAdapter<T> adapter;
-	final Index index;
+	private WritableDataAdapter<T> adapter;
+	private final Index index;
 
-	public DataAdapterStatsWrapper(
+	public DataStoreStatsAdapterWrapper(
 			final Index index,
-			DataAdapter<T> adapter ) {
+			final WritableDataAdapter<T> adapter ) {
 		super();
 		this.index = index;
+		this.adapter = adapter;
+	}
+
+	public void setAdapter(
+			WritableDataAdapter<T> adapter ) {
 		this.adapter = adapter;
 	}
 
@@ -40,20 +46,20 @@ public class DataAdapterStatsWrapper<T> implements
 
 	@Override
 	public boolean isSupported(
-			T entry ) {
+			final T entry ) {
 		return adapter.isSupported(entry);
 	}
 
 	@Override
 	public ByteArrayId getDataId(
-			T entry ) {
+			final T entry ) {
 		return adapter.getDataId(entry);
 	}
 
 	@Override
 	public T decode(
-			IndexedAdapterPersistenceEncoding data,
-			Index index ) {
+			final IndexedAdapterPersistenceEncoding data,
+			final Index index ) {
 		return adapter.decode(
 				data,
 				index);
@@ -61,8 +67,8 @@ public class DataAdapterStatsWrapper<T> implements
 
 	@Override
 	public AdapterPersistenceEncoding encode(
-			T entry,
-			CommonIndexModel indexModel ) {
+			final T entry,
+			final CommonIndexModel indexModel ) {
 		return adapter.encode(
 				entry,
 				indexModel);
@@ -70,7 +76,7 @@ public class DataAdapterStatsWrapper<T> implements
 
 	@Override
 	public FieldReader<Object> getReader(
-			ByteArrayId fieldId ) {
+			final ByteArrayId fieldId ) {
 		return adapter.getReader(fieldId);
 	}
 
@@ -81,14 +87,14 @@ public class DataAdapterStatsWrapper<T> implements
 
 	@Override
 	public void fromBinary(
-			byte[] bytes ) {
+			final byte[] bytes ) {
 		adapter.fromBinary(bytes);
 	}
 
 	@Override
 	public FieldWriter<T, Object> getWriter(
-			ByteArrayId fieldId ) {
-		return (adapter instanceof WritableDataAdapter) ? ((WritableDataAdapter<T>) adapter).getWriter(fieldId) : null;
+			final ByteArrayId fieldId ) {
+		return adapter.getWriter(fieldId);
 	}
 
 	@Override
@@ -104,19 +110,23 @@ public class DataAdapterStatsWrapper<T> implements
 
 	@Override
 	public DataStatistics<T> createDataStatistics(
-			ByteArrayId statisticsId ) {
-		if (statisticsId.equals(RowRangeDataStatistics.STATS_ID)) return new RowRangeDataStatistics(
-				index.getId());
-		if (statisticsId.equals(RowRangeHistogramStatistics.STATS_ID)) return new RowRangeHistogramStatistics(
-				adapter.getAdapterId(),
-				index.getId(),
-				1024);
+			final ByteArrayId statisticsId ) {
+		if (statisticsId.equals(RowRangeDataStatistics.STATS_ID)) {
+			return new RowRangeDataStatistics(
+					index.getId());
+		}
+		if (statisticsId.equals(RowRangeHistogramStatistics.STATS_ID)) {
+			return new RowRangeHistogramStatistics(
+					adapter.getAdapterId(),
+					index.getId(),
+					1024);
+		}
 		return (adapter instanceof StatisticalDataAdapter) ? ((StatisticalDataAdapter) adapter).createDataStatistics(statisticsId) : null;
 	}
 
 	@Override
 	public DataStatisticsVisibilityHandler<T> getVisibilityHandler(
-			ByteArrayId statisticsId ) {
+			final ByteArrayId statisticsId ) {
 		return (adapter instanceof StatisticalDataAdapter) ? ((StatisticalDataAdapter) adapter).getVisibilityHandler(statisticsId) : new EmptyStatisticVisibility<T>();
 	}
 

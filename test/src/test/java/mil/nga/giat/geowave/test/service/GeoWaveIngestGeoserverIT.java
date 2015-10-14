@@ -1,7 +1,18 @@
 package mil.nga.giat.geowave.test.service;
 
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.util.List;
+
+import javax.imageio.ImageIO;
+
 import mil.nga.giat.geowave.adapter.vector.FeatureDataAdapter;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.index.Index;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.datastore.accumulo.AccumuloDataStore;
 import mil.nga.giat.geowave.datastore.accumulo.BasicAccumuloOperations;
 import mil.nga.giat.geowave.examples.ingest.SimpleIngest;
@@ -20,26 +31,14 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.message.BasicNameValuePair;
 import org.apache.log4j.Logger;
 import org.geotools.feature.SchemaException;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
-import org.geotools.resources.image.ImageUtilities;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
-
-import javax.imageio.ImageIO;
-
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class GeoWaveIngestGeoserverIT extends
 		ServicesTestEnvironment
@@ -109,16 +108,19 @@ public class GeoWaveIngestGeoserverIT extends
 				features.size()));
 		int ingestedFeatures = 0;
 		int featuresPer5Percent = features.size() / 20;
-		for (SimpleFeature feat : features) {
-			ds.ingest(
-					fda,
-					idx,
-					feat);
-			ingestedFeatures++;
-			if (ingestedFeatures % featuresPer5Percent == 0) {
-				LOGGER.info(String.format(
-						"Ingested %d percent of features",
-						(ingestedFeatures / featuresPer5Percent) * 5));
+		try (IndexWriter writer = ds.createIndexWriter(
+				idx,
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			for (SimpleFeature feat : features) {
+				writer.write(
+						fda,
+						feat);
+				ingestedFeatures++;
+				if (ingestedFeatures % featuresPer5Percent == 0) {
+					LOGGER.info(String.format(
+							"Ingested %d percent of features",
+							(ingestedFeatures / featuresPer5Percent) * 5));
+				}
 			}
 		}
 

@@ -1,12 +1,15 @@
 package mil.nga.giat.geowave.test.mapreduce;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import mil.nga.giat.geowave.analytic.AnalyticItemWrapper;
 import mil.nga.giat.geowave.analytic.GeometryDataSetGenerator;
 import mil.nga.giat.geowave.analytic.PropertyManagement;
+import mil.nga.giat.geowave.analytic.ShapefileTool;
 import mil.nga.giat.geowave.analytic.SimpleFeatureItemWrapperFactory;
 import mil.nga.giat.geowave.analytic.clustering.CentroidManager;
 import mil.nga.giat.geowave.analytic.clustering.CentroidManagerGeoWave;
@@ -154,7 +157,7 @@ public class GeoWaveKMeansIT extends
 						options));
 		testIngest(dataStoreOptions.getResult().createStore());
 
-		runKPlusPlus(
+		runKJumpPlusPlus(
 				new SpatialQuery(
 						dataGenerator.getBoundingRegion()),
 				dataStoreOptions.getResult(),
@@ -162,7 +165,7 @@ public class GeoWaveKMeansIT extends
 				adapterStoreOptions.getResult());
 		// runKJumpPlusPlus(new SpatialQuery(
 		// dataGenerator.getBoundingRegion()));
-		// GeoWaveTestEnvironment.accumuloOperations.deleteAll();
+
 	}
 
 	private void runKPlusPlus(
@@ -266,9 +269,9 @@ public class GeoWaveKMeansIT extends
 						},
 						new Object[] {
 							query,
-							Integer.toString(MIN_INPUT_SPLITS),
-							Integer.toString(MAX_INPUT_SPLITS),
-							"2",
+							MIN_INPUT_SPLITS,
+							MAX_INPUT_SPLITS,
+							2,
 							"centroid",
 							new PersistableDataStore(
 									dataStoreOptions),
@@ -306,6 +309,7 @@ public class GeoWaveKMeansIT extends
 				"bx2",
 				2,
 				jumpRresultCounLevel1);
+		Assert.assertTrue(jumpRresultCounLevel1 >= 2);
 		Assert.assertTrue(jumpRresultCounLevel2 >= 2);
 		// for travis-ci to run, we want to limit the memory consumption
 		System.gc();
@@ -347,6 +351,7 @@ public class GeoWaveKMeansIT extends
 		for (final String grp : centroidManager.getAllCentroidGroups()) {
 			final List<AnalyticItemWrapper<SimpleFeature>> centroids = centroidManager.getCentroidsForGroup(grp);
 			final List<AnalyticItemWrapper<SimpleFeature>> hulls = hullManager.getCentroidsForGroup(grp);
+
 			for (final AnalyticItemWrapper<SimpleFeature> centroid : centroids) {
 				if (centroid.getAssociationCount() == 0) {
 					continue;
@@ -354,11 +359,14 @@ public class GeoWaveKMeansIT extends
 				Assert.assertTrue(centroid.getGeometry() != null);
 				Assert.assertTrue(centroid.getBatchID() != null);
 				boolean found = false;
+				List<SimpleFeature> features = new ArrayList<SimpleFeature>();
 				for (final AnalyticItemWrapper<SimpleFeature> hull : hulls) {
 					found |= (hull.getName().equals(centroid.getName()));
 					Assert.assertTrue(hull.getGeometry() != null);
 					Assert.assertTrue(hull.getBatchID() != null);
+					features.add(hull.getWrappedItem());
 				}
+				System.out.println(features);
 				Assert.assertTrue(
 						grp,
 						found);

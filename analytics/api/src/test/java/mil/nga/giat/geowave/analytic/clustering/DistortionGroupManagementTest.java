@@ -16,10 +16,13 @@ import mil.nga.giat.geowave.analytic.clustering.DistortionGroupManagement.Distor
 import mil.nga.giat.geowave.core.geotime.IndexType;
 import mil.nga.giat.geowave.core.index.StringUtils;
 import mil.nga.giat.geowave.core.store.DataStore;
+import mil.nga.giat.geowave.core.store.IndexWriter;
 import mil.nga.giat.geowave.core.store.StoreFactoryFamilySpi;
 import mil.nga.giat.geowave.core.store.adapter.AdapterStore;
+import mil.nga.giat.geowave.core.store.adapter.WritableDataAdapter;
 import mil.nga.giat.geowave.core.store.index.Index;
 import mil.nga.giat.geowave.core.store.index.IndexStore;
+import mil.nga.giat.geowave.core.store.memory.DataStoreUtils;
 import mil.nga.giat.geowave.core.store.memory.MemoryStoreFactoryFamily;
 
 import org.geotools.feature.type.BasicFeatureTypes;
@@ -42,6 +45,21 @@ public class DistortionGroupManagementTest
 	final DataStore dataStore;
 	final AdapterStore adapterStore;
 	final IndexStore indexStore;
+
+	private <T> void ingest(
+			WritableDataAdapter<T> adapter,
+			Index index,
+			T entry )
+			throws IOException {
+		try (IndexWriter writer = dataStore.createIndexWriter(
+				index,
+				DataStoreUtils.DEFAULT_VISIBILITY)) {
+			writer.write(
+					adapter,
+					entry);
+			writer.close();
+		}
+	}
 
 	public DistortionGroupManagementTest() {
 		ftype = AnalyticFeature.createGeometryFeatureAdapter(
@@ -72,8 +90,9 @@ public class DistortionGroupManagementTest
 	private void addDistortion(
 			final String grp,
 			final int count,
-			final Double distortion ) {
-		dataStore.ingest(
+			final Double distortion )
+			throws IOException {
+		ingest(
 				new DistortionDataAdapter(),
 				DistortionGroupManagement.DISTORTIONS_INDEX,
 				new DistortionEntry(
@@ -84,7 +103,8 @@ public class DistortionGroupManagementTest
 	}
 
 	@Before
-	public void setup() {
+	public void setup()
+			throws IOException {
 		// big jump for grp1 between batch 2 and 3
 		// big jump for grp2 between batch 1 and 2
 		// thus, the jump occurs for different groups between different batches!
@@ -117,7 +137,7 @@ public class DistortionGroupManagementTest
 				3,
 				0.4);
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -140,7 +160,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -163,7 +183,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -186,7 +206,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -209,7 +229,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -232,7 +252,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -255,7 +275,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -278,7 +298,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -301,7 +321,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -324,7 +344,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -347,7 +367,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(
@@ -370,7 +390,7 @@ public class DistortionGroupManagementTest
 						1,
 						0));
 
-		dataStore.ingest(
+		ingest(
 				adapter,
 				index,
 				AnalyticFeature.createGeometryFeature(

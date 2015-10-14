@@ -348,6 +348,39 @@ public class CompoundIndexStrategy implements
 	}
 
 	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + Arrays.hashCode(baseDefinitions);
+		result = prime * result + defaultNumberOfRanges;
+		result = prime * result + ((subStrategy1 == null) ? 0 : subStrategy1.hashCode());
+		result = prime * result + ((subStrategy2 == null) ? 0 : subStrategy2.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(
+			Object obj ) {
+		if (this == obj) return true;
+		if (obj == null) return false;
+		if (getClass() != obj.getClass()) return false;
+		CompoundIndexStrategy other = (CompoundIndexStrategy) obj;
+		if (!Arrays.equals(
+				baseDefinitions,
+				other.baseDefinitions)) return false;
+		if (defaultNumberOfRanges != other.defaultNumberOfRanges) return false;
+		if (subStrategy1 == null) {
+			if (other.subStrategy1 != null) return false;
+		}
+		else if (!subStrategy1.equals(other.subStrategy1)) return false;
+		if (subStrategy2 == null) {
+			if (other.subStrategy2 != null) return false;
+		}
+		else if (!subStrategy2.equals(other.subStrategy2)) return false;
+		return true;
+	}
+
+	@Override
 	public String getId() {
 		return StringUtils.intToString(hashCode());
 	}

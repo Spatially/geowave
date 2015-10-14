@@ -62,6 +62,11 @@ public class CQLQueryFilter implements
 							v.getId(),
 							value));
 				}
+				if (persistenceEncoding instanceof IndexedAdapterPersistenceEncoding) {
+					for (PersistentValue<Object> v : ((IndexedAdapterPersistenceEncoding) persistenceEncoding).getAdapterExtendedData().getValues()) {
+						adapterExtendedValues.addValue(v);
+					}
+				}
 				final IndexedAdapterPersistenceEncoding encoding = new IndexedAdapterPersistenceEncoding(
 						persistenceEncoding.getAdapterId(),
 						persistenceEncoding.getDataId(),
@@ -93,7 +98,8 @@ public class CQLQueryFilter implements
 	}
 
 	public static void initClassLoader(
-			@SuppressWarnings("rawtypes") final Class cls )
+			@SuppressWarnings("rawtypes")
+			final Class cls )
 			throws MalformedURLException {
 		synchronized (MUTEX) {
 			if (classLoaderInitialized) {
