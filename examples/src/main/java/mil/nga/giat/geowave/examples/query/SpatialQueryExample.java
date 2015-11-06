@@ -34,13 +34,13 @@ import java.util.ArrayList;
  * This class is intended to provide a few examples on running Geowave queries of different types:
  * 1- Querying by polygon a set of points.
  * 2- Filtering on attributes of features using CQL queries
- * 3- Ingesting polygons, and running intersect queries - polygon intersects polygons.
+ * 3- Ingesting polygons, and running polygon intersect queries.
  * You can check all points, geometries and query accuracy in a more visual manner @ http://geojson.io/
  */
 public class SpatialQueryExample {
     //We'll use GeoWave's VectorDataStore, which allows to run CQL rich queries
     private static VectorDataStore dataStore;
-    //We need the AccumuloAdapterStore, which keeps a registry of adapter-ids, used to be able to query specific "tables" or types of features.
+    //We need the AccumuloAdapterStore, which keeps a registry of adapter-ids, used to be able to query specific "tables" or "types" of features.
     private static AccumuloAdapterStore adapterStore;
 
 
@@ -390,12 +390,12 @@ public class SpatialQueryExample {
      * The data ingested and queried is single polygon based, meaning the index constructed will be based on a Geometry.
      */
     private void runPolygonExamples() throws ParseException {
-        System.out.println("++++++++> Ingesting polygon data");
         ingestPolygonFeature();
-        System.out.println("++++++++> Polygon data ingested");
+        polygonQueryCase1();
     }
 
     private void ingestPolygonFeature() throws ParseException {
+        System.out.println("++++++++> Ingesting polygon data");
         //First, we'll build our third kind of SimpleFeature, which we'll call "polygon-feature"
         //We need the type builder to build the feature type
         SimpleFeatureTypeBuilder sftBuilder = new SimpleFeatureTypeBuilder();
@@ -441,13 +441,54 @@ public class SpatialQueryExample {
         // the index type (the default spatial index is used here),
         // and an iterator of SimpleFeature
         dataStore.ingest(sfAdapter, IndexType.SPATIAL_VECTOR.createDefaultIndex(), features.iterator());
+        System.out.println("++++++++> Polygon data ingested");
     }
 
     /**
      * This query will find a polygon/polygon intersection, returning one match.
      */
-    private void polygonQueryCase1() {
+    private void polygonQueryCase1() throws ParseException {
+        System.out.println("++++++++> Running Point Query Case 4");
+        //First, we need to obtain the adapter for the SimpleFeature we want to query.
+        // We'll query polygon-feature in this example.
+        //Obtain adapter for our "polygon-feature" type
+        ByteArrayId bfAdId = new ByteArrayId("polygon-feature");
+        FeatureDataAdapter bfAdapter = (FeatureDataAdapter) adapterStore.getAdapter(bfAdId);
 
+        //Define the geometry to query. We'll find all polygons that intersect with this geometry.
+        String queryPolygonDefinition = "POLYGON (( " +
+                "-80.4037857055664 25.81596330265488, " +
+                "-80.27915954589844 25.788144792391982, " +
+                "-80.34370422363281 25.8814655232439, " +
+                "-80.44567108154297 25.896291175546626, " +
+                "-80.4037857055664  25.81596330265488" +
+                "))";
+
+        Geometry queryPolygon = new WKTReader(JTSFactoryFinder.getGeometryFactory()).read(queryPolygonDefinition);
+
+        //Perform the query.Parameters are
+        /**
+         * 1- Adapter previously obtained from the feature name.
+         * 2- Default spatial index.
+         * 3- A SpatialQuery, which takes the query geometry - aka Bounding box
+         * 4- Filters. For this example, we don't use filters
+         * 5- Limit. Same as standard SQL limit. 0 is no limits.
+         * 6- Accumulo authorizations. For our mock instances, "root" works. In a real Accumulo setting, whatever authorization is associated to the user in question.
+         */
+        CloseableIterator<SimpleFeature> queryResultIterator = dataStore.query(
+                bfAdapter,
+                IndexType.SPATIAL_VECTOR.createDefaultIndex(),
+                new SpatialQuery(queryPolygon),
+                null,
+                0,
+                "root"
+        );
+        int count = 0;
+        while (queryResultIterator.hasNext()) {
+            SimpleFeature sf = queryResultIterator.next();
+            System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            count++;
+        }
+        System.out.println("-*> Should have obtained 1 feature based on the intersection - Polygon. -> " + (count == 1));
     }
-
 }
