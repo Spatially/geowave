@@ -9,6 +9,9 @@ import mil.nga.giat.geowave.adapter.vector.FeatureDataAdapter;
 import mil.nga.giat.geowave.adapter.vector.VectorDataStore;
 import mil.nga.giat.geowave.core.geotime.GeometryUtils;
 import mil.nga.giat.geowave.core.geotime.IndexType;
+import mil.nga.giat.geowave.core.geotime.store.query.SpatialQuery;
+import mil.nga.giat.geowave.core.index.ByteArrayId;
+import mil.nga.giat.geowave.core.store.CloseableIterator;
 import mil.nga.giat.geowave.datastore.accumulo.BasicAccumuloOperations;
 import mil.nga.giat.geowave.datastore.accumulo.metadata.AccumuloAdapterStore;
 import org.apache.accumulo.core.client.AccumuloException;
@@ -19,6 +22,8 @@ import org.apache.accumulo.core.client.security.tokens.PasswordToken;
 import org.geotools.feature.AttributeTypeBuilder;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.filter.text.cql2.CQL;
+import org.geotools.filter.text.cql2.CQLException;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -39,10 +44,13 @@ public class SpatialQueryExample {
     private static AccumuloAdapterStore adapterStore;
 
 
-    public static void main(String[] args) throws AccumuloSecurityException, AccumuloException, ParseException {
+    public static void main(String[] args) throws AccumuloSecurityException, AccumuloException, ParseException, CQLException {
         SpatialQueryExample example = new SpatialQueryExample();
+        System.out.println("-----------------> Setting up datastores");
         example.setupDataStores();
+        System.out.println("-----------------> Running point query examples");
         example.runPointExamples();
+        System.out.println("-----------------> Running polygon query examples");
         example.runPolygonExamples();
     }
 
@@ -60,13 +68,19 @@ public class SpatialQueryExample {
      * We'll run our point related operations.
      * The data ingested and queried is single point based, meaning the index constructed will be based on a point.
      */
-    private void runPointExamples() {
+    private void runPointExamples() throws ParseException, CQLException {
         ingestPointData();
+        pointQueryCase1();
+        pointQueryCase2();
+        pointQueryCase3();
+        pointQueryCase4();
     }
 
     private void ingestPointData() {
+        System.out.println("++++++++> Ingesting point data");
         ingestPointBasicFeature();
         ingestPointComplexFeature();
+        System.out.println("++++++++> Point data ingested");
     }
 
     private void ingestPointBasicFeature() {
@@ -172,11 +186,213 @@ public class SpatialQueryExample {
     }
 
     /**
+     * This query will search all points using the world's Bounding Box
+     */
+    private void pointQueryCase1() throws ParseException {
+        System.out.println("++++++++> Running Point Query Case 1");
+        //First, we need to obtain the adapter for the SimpleFeature we want to query.
+        // We'll query basic-feature in this example.
+        //Obtain adapter for our "basic-feature" type
+        ByteArrayId bfAdId = new ByteArrayId("basic-feature");
+        FeatureDataAdapter bfAdapter = (FeatureDataAdapter) adapterStore.getAdapter(bfAdId);
+
+        //Define the geometry to query. We'll find all points that fall inside that geometry
+        String queryPolygonDefinition = "POLYGON (( " +
+                "-180 -90, " +
+                "-180 90, " +
+                "180 90, " +
+                "180 -90, " +
+                "-180 -90" +
+                "))";
+        Geometry queryPolygon = new WKTReader(JTSFactoryFinder.getGeometryFactory()).read(queryPolygonDefinition);
+
+        //Perform the query.Parameters are
+        /**
+         * 1- Adapter previously obtained from the feature name.
+         * 2- Default spatial index.
+         * 3- A SpatialQuery, which takes the query geometry - aka Bounding box
+         * 4- Filters. For this example, no filter is used.
+         * 5- Limit. Same as standard SQL limit. 0 is no limits.
+         * 6- Accumulo authorizations. For our mock instances, "root" works. In a real Accumulo setting, whatever authorization is associated to the user in question.
+         */
+
+        CloseableIterator<SimpleFeature> queryResultIterator = dataStore.query(
+                bfAdapter,
+                IndexType.SPATIAL_VECTOR.createDefaultIndex(),
+                new SpatialQuery(queryPolygon),
+                null,
+                0,
+                "root"
+        );
+        int count = 0;
+        while (queryResultIterator.hasNext()) {
+            SimpleFeature sf = queryResultIterator.next();
+            System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            count++;
+        }
+        System.out.println("-*> Should have obtained 2 features. -> " + (count == 2));
+    }
+
+    /**
+     * This query will use a specific Bounding Box, and will find only 1 point.
+     */
+    private void pointQueryCase2() throws ParseException {
+        System.out.println("++++++++> Running Point Query Case 2");
+        //First, we need to obtain the adapter for the SimpleFeature we want to query.
+        // We'll query complex-feature in this example.
+        //Obtain adapter for our "complex-feature" type
+        ByteArrayId bfAdId = new ByteArrayId("complex-feature");
+        FeatureDataAdapter bfAdapter = (FeatureDataAdapter) adapterStore.getAdapter(bfAdId);
+
+        //Define the geometry to query. We'll find all points that fall inside that geometry.
+        String queryPolygonDefinition = "POLYGON (( " +
+                "-118.50059509277344 33.75688594085081, " +
+                "-118.50059509277344 34.1521587488017, " +
+                "-117.80502319335938 34.1521587488017, " +
+                "-117.80502319335938 33.75688594085081, " +
+                "-118.50059509277344 33.75688594085081" +
+                "))";
+
+        Geometry queryPolygon = new WKTReader(JTSFactoryFinder.getGeometryFactory()).read(queryPolygonDefinition);
+
+        //Perform the query.Parameters are
+        /**
+         * 1- Adapter previously obtained from the feature name.
+         * 2- Default spatial index.
+         * 3- A SpatialQuery, which takes the query geometry - aka Bounding box
+         * 4- Filters. For this example, no filter is used.
+         * 5- Limit. Same as standard SQL limit. 0 is no limits.
+         * 6- Accumulo authorizations. For our mock instances, "root" works. In a real Accumulo setting, whatever authorization is associated to the user in question.
+         */
+        CloseableIterator<SimpleFeature> queryResultIterator = dataStore.query(
+                bfAdapter,
+                IndexType.SPATIAL_VECTOR.createDefaultIndex(),
+                new SpatialQuery(queryPolygon),
+                null,
+                0,
+                "root"
+        );
+        int count = 0;
+        while (queryResultIterator.hasNext()) {
+            SimpleFeature sf = queryResultIterator.next();
+            System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            count++;
+        }
+        System.out.println("-*> Should have obtained 1 features - Complex-LA. -> " + (count == 1));
+    }
+
+    /**
+     * This query will use the world's Bounding Box together with a CQL filter.
+     */
+    private void pointQueryCase3() throws ParseException, CQLException {
+        System.out.println("++++++++> Running Point Query Case 3");
+        //First, we need to obtain the adapter for the SimpleFeature we want to query.
+        // We'll query basic-feature in this example.
+        //Obtain adapter for our "basic-feature" type
+        ByteArrayId bfAdId = new ByteArrayId("basic-feature");
+        FeatureDataAdapter bfAdapter = (FeatureDataAdapter) adapterStore.getAdapter(bfAdId);
+
+        //Define the geometry to query. We'll find all points that fall inside that geometry.
+        String queryPolygonDefinition = "POLYGON (( " +
+                "-180 -90, " +
+                "-180 90, " +
+                "180 90, " +
+                "180 -90, " +
+                "-180 -90" +
+                "))";
+
+        Geometry queryPolygon = new WKTReader(JTSFactoryFinder.getGeometryFactory()).read(queryPolygonDefinition);
+        String CQLFilter = "filter = 'Basic-Stadium'";
+        //Perform the query.Parameters are
+        /**
+         * 1- Adapter previously obtained from the feature name.
+         * 2- Default spatial index.
+         * 3- A SpatialQuery, which takes the query geometry - aka Bounding box
+         * 4- Filters. For this example, we reduce all returned points (2) by using a filter.
+         * 5- Limit. Same as standard SQL limit. 0 is no limits.
+         * 6- Accumulo authorizations. For our mock instances, "root" works. In a real Accumulo setting, whatever authorization is associated to the user in question.
+         */
+        CloseableIterator<SimpleFeature> queryResultIterator = dataStore.query(
+                bfAdapter,
+                IndexType.SPATIAL_VECTOR.createDefaultIndex(),
+                new SpatialQuery(queryPolygon),
+                CQL.toFilter(CQLFilter),
+                0,
+                "root"
+        );
+        // Our query would have found 2 points based only on the Bounding Box, but using the
+        // filter to match a particular attribute will reduce our result set size to 1
+        int count = 0;
+        while (queryResultIterator.hasNext()) {
+            SimpleFeature sf = queryResultIterator.next();
+            System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            count++;
+        }
+        System.out.println("-*> Should have obtained 1 feature based on the filter - Basic-Stadium. -> " + (count == 1));
+
+    }
+
+    /**
+     * This query will use the world's Bounding Box together with a more complex CQL filter.
+     */
+    private void pointQueryCase4() throws ParseException, CQLException {
+        System.out.println("++++++++> Running Point Query Case 4");
+        //First, we need to obtain the adapter for the SimpleFeature we want to query.
+        // We'll query complex-feature in this example.
+        //Obtain adapter for our "complex-feature" type
+        ByteArrayId bfAdId = new ByteArrayId("complex-feature");
+        FeatureDataAdapter bfAdapter = (FeatureDataAdapter) adapterStore.getAdapter(bfAdId);
+
+        //Define the geometry to query. We'll find all points that fall inside that geometry.
+        String queryPolygonDefinition = "POLYGON (( " +
+                "-180 -90, " +
+                "-180 90, " +
+                "180 90, " +
+                "180 -90, " +
+                "-180 -90" +
+                "))";
+
+        Geometry queryPolygon = new WKTReader(JTSFactoryFinder.getGeometryFactory()).read(queryPolygonDefinition);
+        //This CQL query will yield a single point - Complex-LA
+        String CQLFilter = "latitude > 25 AND longitude < -118";
+        //Perform the query.Parameters are
+        /**
+         * 1- Adapter previously obtained from the feature name.
+         * 2- Default spatial index.
+         * 3- A SpatialQuery, which takes the query geometry - aka Bounding box
+         * 4- Filters. For this example, we reduce all returned points (2) by using a filter.
+         * 5- Limit. Same as standard SQL limit. 0 is no limits.
+         * 6- Accumulo authorizations. For our mock instances, "root" works. In a real Accumulo setting, whatever authorization is associated to the user in question.
+         */
+        CloseableIterator<SimpleFeature> queryResultIterator = dataStore.query(
+                bfAdapter,
+                IndexType.SPATIAL_VECTOR.createDefaultIndex(),
+                new SpatialQuery(queryPolygon),
+                CQL.toFilter(CQLFilter),
+                0,
+                "root"
+        );
+        // Our query would have found 2 points based only on the Bounding Box, but using the
+        // filter to match a particular attribute will reduce our result set size to 1
+        int count = 0;
+        while (queryResultIterator.hasNext()) {
+            SimpleFeature sf = queryResultIterator.next();
+            System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter") +
+                    " - " + sf.getAttribute("latitude") + " - " + sf.getAttribute("longitude"));
+            count++;
+        }
+        System.out.println("-*> Should have obtained 1 feature based on the filter - Complex-LA. -> " + (count == 1));
+    }
+
+
+    /**
      * We'll run our polygon related operations.
      * The data ingested and queried is single polygon based, meaning the index constructed will be based on a Geometry.
      */
     private void runPolygonExamples() throws ParseException {
+        System.out.println("++++++++> Ingesting polygon data");
         ingestPolygonFeature();
+        System.out.println("++++++++> Polygon data ingested");
     }
 
     private void ingestPolygonFeature() throws ParseException {
@@ -212,7 +428,7 @@ public class SpatialQueryExample {
                 "-80.34233093261719 25.772068899816585, " +
                 "-80.3045654296875 25.852426562716428" +
                 "))";
-        Geometry geom = new WKTReader(JTSFactoryFinder.getGeometryFactory()).read(polygonDefinition));
+        Geometry geom = new WKTReader(JTSFactoryFinder.getGeometryFactory()).read(polygonDefinition);
         sfBuilder.set("geometry", geom);
         sfBuilder.set("filter", "Polygon");
         //When calling buildFeature, we need to pass an unique id for that feature, or it will be overwritten.
@@ -226,4 +442,12 @@ public class SpatialQueryExample {
         // and an iterator of SimpleFeature
         dataStore.ingest(sfAdapter, IndexType.SPATIAL_VECTOR.createDefaultIndex(), features.iterator());
     }
+
+    /**
+     * This query will find a polygon/polygon intersection, returning one match.
+     */
+    private void polygonQueryCase1() {
+
+    }
+
 }
