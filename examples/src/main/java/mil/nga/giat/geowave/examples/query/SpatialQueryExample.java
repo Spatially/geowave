@@ -19,6 +19,7 @@ import org.apache.accumulo.core.client.AccumuloSecurityException;
 import org.apache.accumulo.core.client.Connector;
 import org.apache.accumulo.core.client.mock.MockInstance;
 import org.apache.accumulo.core.client.security.tokens.PasswordToken;
+import org.apache.log4j.Logger;
 import org.geotools.feature.AttributeTypeBuilder;
 import org.geotools.feature.simple.SimpleFeatureBuilder;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
@@ -38,6 +39,8 @@ import java.util.ArrayList;
  * You can check all points, geometries and query accuracy in a more visual manner @ http://geojson.io/
  */
 public class SpatialQueryExample {
+    private static Logger log = Logger.getLogger(SpatialQueryExample.class);
+
 	//We'll use GeoWave's VectorDataStore, which allows to run CQL rich queries
 	private static VectorDataStore dataStore;
 	//We need the AccumuloAdapterStore, which keeps a registry of adapter-ids, used to be able to query specific "tables" or "types" of features.
@@ -46,11 +49,11 @@ public class SpatialQueryExample {
 
 	public static void main(String[] args) throws AccumuloSecurityException, AccumuloException, ParseException, CQLException {
 		SpatialQueryExample example = new SpatialQueryExample();
-		System.out.println("-----------------> Setting up datastores");
+		log.info("Setting up datastores");
 		example.setupDataStores();
-		System.out.println("-----------------> Running point query examples");
+        log.info("Running point query examples");
 		example.runPointExamples();
-		System.out.println("-----------------> Running polygon query examples");
+        log.info("Running polygon query examples");
 		example.runPolygonExamples();
 	}
 
@@ -77,10 +80,10 @@ public class SpatialQueryExample {
 	}
 
 	private void ingestPointData() {
-		System.out.println("++++++++> Ingesting point data");
+        log.info("Ingesting point data");
 		ingestPointBasicFeature();
 		ingestPointComplexFeature();
-		System.out.println("++++++++> Point data ingested");
+        log.info("Point data ingested");
 	}
 
 	private void ingestPointBasicFeature() {
@@ -189,7 +192,7 @@ public class SpatialQueryExample {
 	 * This query will search all points using the world's Bounding Box
 	 */
 	private void pointQueryCase1() throws ParseException {
-		System.out.println("++++++++> Running Point Query Case 1");
+        log.info("Running Point Query Case 1");
 		//First, we need to obtain the adapter for the SimpleFeature we want to query.
 		// We'll query basic-feature in this example.
 		//Obtain adapter for our "basic-feature" type
@@ -227,17 +230,17 @@ public class SpatialQueryExample {
 		int count = 0;
 		while (queryResultIterator.hasNext()) {
 			SimpleFeature sf = queryResultIterator.next();
-			System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            log.info("Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
 			count++;
 		}
-		System.out.println("-*> Should have obtained 2 features. -> " + (count == 2));
+        log.info("Should have obtained 2 features. -> " + (count == 2));
 	}
 
 	/**
 	 * This query will use a specific Bounding Box, and will find only 1 point.
 	 */
 	private void pointQueryCase2() throws ParseException {
-		System.out.println("++++++++> Running Point Query Case 2");
+        log.info("Running Point Query Case 2");
 		//First, we need to obtain the adapter for the SimpleFeature we want to query.
 		// We'll query complex-feature in this example.
 		//Obtain adapter for our "complex-feature" type
@@ -275,17 +278,17 @@ public class SpatialQueryExample {
 		int count = 0;
 		while (queryResultIterator.hasNext()) {
 			SimpleFeature sf = queryResultIterator.next();
-			System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            log.info("Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
 			count++;
 		}
-		System.out.println("-*> Should have obtained 1 features - Complex-LA. -> " + (count == 1));
+        log.info("Should have obtained 1 features - Complex-LA. -> " + (count == 1));
 	}
 
 	/**
 	 * This query will use the world's Bounding Box together with a CQL filter.
 	 */
 	private void pointQueryCase3() throws ParseException, CQLException {
-		System.out.println("++++++++> Running Point Query Case 3");
+        log.info("Running Point Query Case 3");
 		//First, we need to obtain the adapter for the SimpleFeature we want to query.
 		// We'll query basic-feature in this example.
 		//Obtain adapter for our "basic-feature" type
@@ -325,10 +328,10 @@ public class SpatialQueryExample {
 		int count = 0;
 		while (queryResultIterator.hasNext()) {
 			SimpleFeature sf = queryResultIterator.next();
-			System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            log.info("Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
 			count++;
 		}
-		System.out.println("-*> Should have obtained 1 feature based on the filter - Basic-Stadium. -> " + (count == 1));
+        log.info("Should have obtained 1 feature based on the filter - Basic-Stadium. -> " + (count == 1));
 
 	}
 
@@ -336,7 +339,7 @@ public class SpatialQueryExample {
 	 * This query will use the world's Bounding Box together with a more complex CQL filter.
 	 */
 	private void pointQueryCase4() throws ParseException, CQLException {
-		System.out.println("++++++++> Running Point Query Case 4");
+        log.info("Running Point Query Case 4");
 		//First, we need to obtain the adapter for the SimpleFeature we want to query.
 		// We'll query complex-feature in this example.
 		//Obtain adapter for our "complex-feature" type
@@ -377,15 +380,15 @@ public class SpatialQueryExample {
 		int count = 0;
 		while (queryResultIterator.hasNext()) {
 			SimpleFeature sf = queryResultIterator.next();
-			System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter") +
-					" - " + sf.getAttribute("latitude") + " - " + sf.getAttribute("longitude"));
+            log.info("Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter") +
+                    " - " + sf.getAttribute("latitude") + " - " + sf.getAttribute("longitude"));
 			count++;
 		}
-		System.out.println("-*> Should have obtained 1 feature based on the filter - Complex-LA. -> " + (count == 1));
-	}
+        log.info("Should have obtained 1 feature based on the filter - Complex-LA. -> " + (count == 1));
+    }
 
 
-	/**
+    /**
 	 * We'll run our polygon related operations.
 	 * The data ingested and queried is single polygon based, meaning the index constructed will be based on a Geometry.
 	 */
@@ -395,7 +398,7 @@ public class SpatialQueryExample {
 	}
 
 	private void ingestPolygonFeature() throws ParseException {
-		System.out.println("++++++++> Ingesting polygon data");
+        log.info("Ingesting polygon data");
 		//First, we'll build our third kind of SimpleFeature, which we'll call "polygon-feature"
 		//We need the type builder to build the feature type
 		SimpleFeatureTypeBuilder sftBuilder = new SimpleFeatureTypeBuilder();
@@ -441,14 +444,14 @@ public class SpatialQueryExample {
 		// the index type (the default spatial index is used here),
 		// and an iterator of SimpleFeature
 		dataStore.ingest(sfAdapter, IndexType.SPATIAL_VECTOR.createDefaultIndex(), features.iterator());
-		System.out.println("++++++++> Polygon data ingested");
+        log.info("Polygon data ingested");
 	}
 
 	/**
 	 * This query will find a polygon/polygon intersection, returning one match.
 	 */
 	private void polygonQueryCase1() throws ParseException {
-		System.out.println("++++++++> Running Point Query Case 4");
+        log.info("Running Point Query Case 4");
 		//First, we need to obtain the adapter for the SimpleFeature we want to query.
 		// We'll query polygon-feature in this example.
 		//Obtain adapter for our "polygon-feature" type
@@ -486,9 +489,9 @@ public class SpatialQueryExample {
 		int count = 0;
 		while (queryResultIterator.hasNext()) {
 			SimpleFeature sf = queryResultIterator.next();
-			System.out.println("**> Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
+            log.info("Obtained SimpleFeature " + sf.getName().toString() + " - " + sf.getAttribute("filter"));
 			count++;
 		}
-		System.out.println("-*> Should have obtained 1 feature based on the intersection - Polygon. -> " + (count == 1));
+        log.info("Should have obtained 1 feature based on the intersection - Polygon. -> " + (count == 1));
 	}
 }
